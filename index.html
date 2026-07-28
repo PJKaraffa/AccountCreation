@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staff Certification & Personnel Tracker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="loginPage" class="login-shell">
+    <div class="login-card">
+      <div class="brand-mark">BPS</div>
+      <h1>Staff Certification Tracker</h1>
+      <p>Secure personnel information management</p>
+      <label>Email</label>
+      <input id="loginEmail" type="email" autocomplete="username" placeholder="name@district.org">
+      <label>Password</label>
+      <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password">
+      <button id="loginButton" class="primary full">Sign In</button>
+      <p id="loginMessage" class="message"></p>
+    </div>
+  </div>
+
+  <div id="appPage" class="hidden">
+    <header class="app-header">
+      <div>
+        <h1>Staff Certification & Personnel Tracker</h1>
+        <p id="welcomeText"></p>
+      </div>
+      <div class="header-actions">
+        <span id="roleBadge" class="role-badge"></span>
+        <button id="logoutButton" class="secondary">Logout</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="recordsTab">Records</button>
+      <button class="tab" data-tab="entryTab">Add / Edit Record</button>
+      <button id="auditTabButton" class="tab admin-only hidden" data-tab="auditTab">Audit Log</button>
+      <button id="usersTabButton" class="tab admin-only hidden" data-tab="usersTab">Users</button>
+    </nav>
+
+    <main>
+      <section id="recordsTab" class="tab-panel">
+        <div class="summary-grid">
+          <article><span>Total Records</span><strong id="totalRecords">0</strong></article>
+          <article><span>Complete</span><strong id="completeRecords">0</strong></article>
+          <article><span>Incomplete</span><strong id="incompleteRecords">0</strong></article>
+          <article><span>Completion Rate</span><strong id="completionRate">0%</strong></article>
+        </div>
+
+        <div class="toolbar">
+          <input id="searchInput" type="search" placeholder="Search name, certification number, position, location, email...">
+          <select id="statusFilter">
+            <option value="all">All Records</option>
+            <option value="complete">Complete</option>
+            <option value="incomplete">Incomplete</option>
+          </select>
+          <button id="exportButton" class="secondary">Export CSV</button>
+          <button id="newRecordButton" class="primary">Add Record</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Cert #</th>
+                <th>Last Name</th>
+                <th>First Name</th>
+                <th>Position</th>
+                <th>Location</th>
+                <th>Degree</th>
+                <th>District Email</th>
+                <th>Updated</th>
+                <th>Updated By</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="recordsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="entryTab" class="tab-panel hidden">
+        <div class="section-heading">
+          <div>
+            <h2 id="formTitle">Add Staff Record</h2>
+            <p>Required fields are marked with an asterisk. The system calculates completion automatically.</p>
+          </div>
+          <button id="cancelEditButton" class="secondary">Clear Form</button>
+        </div>
+
+        <form id="recordForm">
+          <input id="recordId" type="hidden">
+
+          <div class="form-section">
+            <h3>Employee Information</h3>
+            <div class="form-grid">
+              <label>Certification Number *<input id="cert_number" required></label>
+              <label>Last Name *<input id="last_name" required></label>
+              <label>First Name *<input id="first_name" required></label>
+              <label>Position *<input id="position" required></label>
+              <label>Location *<input id="location" required></label>
+              <label>Date of Hire *<input id="doh" type="date" required></label>
+              <label>EIN *<input id="ein" required></label>
+              <label>Date of Birth *<input id="dob" type="date" required></label>
+              <label>Gender *
+                <select id="gender" required>
+                  <option value="">Select...</option>
+                  <option>Female</option>
+                  <option>Male</option>
+                  <option>Nonbinary</option>
+                  <option>Prefer not to answer</option>
+                </select>
+              </label>
+              <label>Race/Ethnicity *
+                <select id="race_ethnicity" required>
+                  <option value="">Select...</option>
+                  <option>Hispanic/Latino (of any race)</option>
+                  <option>American Indian or Alaska Native</option>
+                  <option>Asian</option>
+                  <option>Black or African American</option>
+                  <option>Native Hawaiian or Other Pacific Islander</option>
+                  <option>White</option>
+                  <option>Two or More Races</option>
+                </select>
+              </label>
+              <label>Employee ID *<input id="employee_id" required></label>
+              <label>Degree *
+                <select id="degree" required>
+                  <option value="">Select...</option>
+                  <option>Associate</option>
+                  <option>Bachelor's</option>
+                  <option>Master's</option>
+                  <option>6th Year</option>
+                  <option>Doctorate</option>
+                </select>
+              </label>
+              <label>Years Experience *<input id="years_experience" type="number" min="0" step="0.01" required></label>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3>Contact Information</h3>
+            <div class="form-grid">
+              <label>District Email *<input id="district_email" type="email" required></label>
+              <label>Personal Email *<input id="email" type="email" required></label>
+              <label>Cell Phone Number *<input id="cell_phone" type="tel" required></label>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3>System Access & Documentation</h3>
+            <div class="boolean-grid">
+              <label>NDA Signed *<select id="nda_signed" required><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
+              <label>PowerSchool *<select id="power_school" required><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
+              <label>Previous BOE *<select id="previous_boe" required><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
+              <label>Data Management 1 *<select id="data_management_1" required><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
+              <label>Data Management 2 *<select id="data_management_2" required><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
+              <label>Account Created *<select id="account_created" required><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3>Notes</h3>
+            <label>Note *<textarea id="note" rows="4" required></textarea></label>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="primary">Save Record</button>
+            <span id="formMessage" class="message"></span>
+          </div>
+        </form>
+      </section>
+
+      <section id="auditTab" class="tab-panel hidden admin-only">
+        <div class="section-heading">
+          <div>
+            <h2>Administrator Audit Log</h2>
+            <p>Every insert, update, and deletion is recorded.</p>
+          </div>
+          <button id="refreshAuditButton" class="secondary">Refresh</button>
+        </div>
+        <div class="toolbar">
+          <input id="auditSearch" type="search" placeholder="Search employee, action, or user...">
+          <select id="auditActionFilter">
+            <option value="all">All Actions</option>
+            <option value="INSERT">Created</option>
+            <option value="UPDATE">Updated</option>
+            <option value="DELETE">Deleted</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Date/Time</th><th>Action</th><th>Employee</th><th>Changed By</th><th>Fields Changed</th><th>Details</th></tr></thead>
+            <tbody id="auditBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="usersTab" class="tab-panel hidden admin-only">
+        <div class="section-heading">
+          <div>
+            <h2>User Administration</h2>
+            <p>Assign administrator or user access.</p>
+          </div>
+          <button id="refreshUsersButton" class="secondary">Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Action</th></tr></thead>
+            <tbody id="usersBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="detailsDialog">
+    <div class="dialog-heading">
+      <h2>Record Details</h2>
+      <button id="closeDialogButton" class="icon-button">×</button>
+    </div>
+    <div id="detailsContent"></div>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
