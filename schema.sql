@@ -79,6 +79,43 @@ create unique index if not exists staff_records_employee_id_uq
   on public.staff_records (lower(employee_id))
   where employee_id is not null and btrim(employee_id) <> '';
 
+
+-- -----------------------------
+-- Multiple locations
+-- The legacy staff_records.location column stores a readable joined value
+-- so completeness checks, exports, and audit history remain straightforward.
+-- -----------------------------
+create table if not exists public.locations (
+  id bigint generated always as identity primary key,
+  location_name text not null,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists locations_name_uq
+  on public.locations (lower(location_name));
+
+create table if not exists public.staff_locations (
+  staff_id bigint not null references public.staff_records(id) on delete cascade,
+  location_id bigint not null references public.locations(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (staff_id, location_id)
+);
+
+-- Convert any existing single-location values into the new relationship tables.
+insert into public.locations (location_name)
+select distinct btrim(location)
+from public.staff_records
+where nullif(btrim(location),'') is not null
+on conflict do nothing;
+
+insert into public.staff_locations (staff_id, location_id)
+select s.id, l.id
+from public.staff_records s
+join public.locations l on lower(l.location_name) = lower(btrim(s.location))
+where nullif(btrim(s.location),'') is not null
+on conflict do nothing;
+
 -- -----------------------------
 -- Audit history
 -- -----------------------------
@@ -291,6 +328,8 @@ from public.staff_records s;
 alter table public.profiles enable row level security;
 alter table public.staff_records enable row level security;
 alter table public.staff_record_audit enable row level security;
+alter table public.locations enable row level security;
+alter table public.staff_locations enable row level security;
 
 drop policy if exists "Profiles read own or admin" on public.profiles;
 create policy "Profiles read own or admin"
@@ -336,12 +375,53 @@ on public.staff_record_audit for select
 to authenticated
 using (public.is_admin());
 
+
+
+drop policy if exists "Authenticated read locations" on public.locations;
+create policy "Authenticated read locations"
+on public.locations for select to authenticated using (true);
+
+drop policy if exists "Authenticated add locations" on public.locations;
+create policy "Authenticated add locations"
+on public.locations for insert to authenticated with check (true);
+
+drop policy if exists "Admin update locations" on public.locations;
+create policy "Admin update locations"
+on public.locations for update to authenticated
+using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists "Authenticated read staff locations" on public.staff_locations;
+create policy "Authenticated read staff locations"
+on public.staff_locations for select to authenticated using (true);
+
+drop policy if exists "Owner or admin insert staff locations" on public.staff_locations;
+create policy "Owner or admin insert staff locations"
+on public.staff_locations for insert to authenticated
+with check (
+  public.is_admin() or exists (
+    select 1 from public.staff_records s
+    where s.id = staff_id and s.created_by = auth.uid()
+  )
+);
+
+drop policy if exists "Owner or admin delete staff locations" on public.staff_locations;
+create policy "Owner or admin delete staff locations"
+on public.staff_locations for delete to authenticated
+using (
+  public.is_admin() or exists (
+    select 1 from public.staff_records s
+    where s.id = staff_id and s.created_by = auth.uid()
+  )
+);
+
 -- Grant access needed by the browser client
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on public.staff_records to authenticated;
 grant select on public.staff_records_with_status to authenticated;
 grant select on public.staff_record_audit to authenticated;
 grant select, update on public.profiles to authenticated;
+grant select, insert, update on public.locations to authenticated;
+grant select, insert, delete on public.staff_locations to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
 
 -- ============================================================

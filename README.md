@@ -3,6 +3,8 @@
 ## Included
 - Administrator and user login through Supabase Authentication
 - Staff record entry and editing
+- Multiple locations per employee using a searchable tag selector
+- Normalized `locations` and `staff_locations` database tables
 - Degree and race/ethnicity dropdowns
 - Automatic complete/incomplete status and completion percentage
 - Administrator audit log showing who created, updated, or deleted a record
@@ -46,3 +48,9 @@ This system contains sensitive personnel information. Use a private deployment, 
 7. Click **Import Records**.
 
 Duplicates are matched by Certification Number first and Employee ID second. When updating, blank cells in the uploaded file do not erase existing values. Every inserted or updated record is captured by the audit trigger.
+
+
+## Multiple locations
+Users can type a location and press Enter to add it as a tag. Existing locations appear as suggestions. During Excel/CSV import, place multiple locations in the Location column separated by semicolons, for example: `Central High School; District Office`.
+
+Existing installations should rerun the complete updated `schema.sql`; it safely creates the new location tables and migrates existing single-location values.

@@ -102,7 +102,15 @@
               <label>Last Name *<input id="last_name" required></label>
               <label>First Name *<input id="first_name" required></label>
               <label>Position *<input id="position" required></label>
-              <label>Location *<input id="location" required></label>
+              <label class="location-field">Location(s) *
+                <div id="locationSelector" class="tag-selector">
+                  <div id="locationTags" class="tag-list"></div>
+                  <input id="locationInput" type="text" placeholder="Type a location and press Enter" autocomplete="off">
+                  <div id="locationSuggestions" class="tag-suggestions hidden"></div>
+                </div>
+                <small>Select one or more locations. Separate imported locations with semicolons.</small>
+                <input id="location" type="hidden">
+              </label>
               <label>Date of Hire *<input id="doh" type="date" required></label>
               <label>EIN *<input id="ein" required></label>
               <label>Date of Birth *<input id="dob" type="date" required></label>

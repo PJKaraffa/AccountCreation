@@ -102,3 +102,18 @@ dialog::backdrop { background:rgba(10,25,40,.6); }
 .preview-warning { color:#8a5800; font-weight:700; }
 .preview-ready { color:#12673f; font-weight:700; }
 @media (max-width:700px) { .import-grid { grid-template-columns:1fr; } }
+
+
+/* Multi-location tag selector */
+.location-field { grid-column: span 2; }
+.tag-selector { position:relative; min-height:44px; border:1px solid #bdcbd8; border-radius:8px; background:#fff; padding:6px; }
+.tag-selector:focus-within { outline:3px solid rgba(23,105,170,.15); border-color:var(--blue); }
+.tag-list { display:flex; flex-wrap:wrap; gap:6px; }
+.location-tag { display:inline-flex; align-items:center; gap:7px; background:var(--light-blue); color:var(--navy); border:1px solid #c8deed; border-radius:999px; padding:5px 9px; font-weight:700; font-size:.86rem; }
+.location-tag button { padding:0; background:transparent; color:var(--navy); font-size:1rem; line-height:1; }
+#locationInput { border:0; outline:0; padding:7px 5px; min-width:230px; }
+.tag-suggestions { position:absolute; z-index:20; left:0; right:0; top:100%; margin-top:4px; max-height:220px; overflow:auto; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow); }
+.tag-suggestion { padding:10px 12px; cursor:pointer; }
+.tag-suggestion:hover { background:var(--light-blue); }
+.location-field small { color:var(--muted); font-weight:400; }
+@media (max-width:700px) { .location-field { grid-column:span 1; } }

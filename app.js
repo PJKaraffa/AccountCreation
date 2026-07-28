@@ -4,6 +4,8 @@ let records = [];
 let auditRows = [];
 let profiles = [];
 let importPreviewRows = [];
+let availableLocations = [];
+let selectedLocations = [];
 
 const BOOLEAN_FIELDS = [
   "nda_signed","power_school","previous_boe",
@@ -62,6 +64,11 @@ function bindEvents() {
   $("runImportButton").addEventListener("click", runImport);
   $("downloadTemplateButton").addEventListener("click", downloadImportTemplate);
   $("importFile").addEventListener("change", clearImportPreview);
+  $("locationInput").addEventListener("input", renderLocationSuggestions);
+  $("locationInput").addEventListener("keydown", handleLocationKeydown);
+  document.addEventListener("click", e => {
+    if (!$("locationSelector").contains(e.target)) $("locationSuggestions").classList.add("hidden");
+  });
 
   $("closeDialogButton").addEventListener("click", () => $("detailsDialog").close());
 }
@@ -114,6 +121,7 @@ async function loadApplication(user) {
   $("appPage").classList.remove("hidden");
   setMessage("loginMessage", "");
 
+  await loadLocations();
   await loadRecords();
   if (profile.role === "admin") {
     await Promise.all([loadAudit(), loadUsers()]);
@@ -125,6 +133,91 @@ function openTab(tabId) {
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
   $(tabId).classList.remove("hidden");
   document.querySelector(`.tab[data-tab="${tabId}"]`)?.classList.add("active");
+}
+
+
+async function loadLocations() {
+  const { data, error } = await supabaseClient.from("locations").select("id,location_name").eq("active", true).order("location_name");
+  if (error) {
+    console.warn("Locations could not be loaded:", error.message);
+    availableLocations = [];
+    return;
+  }
+  availableLocations = data || [];
+}
+
+function parseLocations(value) {
+  return [...new Set(String(value || "").split(/[;,|]/).map(x => x.trim()).filter(Boolean))];
+}
+
+function setSelectedLocations(values) {
+  selectedLocations = [...new Set((values || []).map(x => String(x).trim()).filter(Boolean))];
+  $("location").value = selectedLocations.join("; ");
+  renderLocationTags();
+}
+
+function addLocation(name) {
+  const clean = String(name || "").trim();
+  if (!clean || selectedLocations.some(x => x.toLowerCase() === clean.toLowerCase())) return;
+  selectedLocations.push(clean);
+  $("location").value = selectedLocations.join("; ");
+  $("locationInput").value = "";
+  renderLocationTags();
+  renderLocationSuggestions();
+}
+
+function removeLocation(index) {
+  selectedLocations.splice(index, 1);
+  $("location").value = selectedLocations.join("; ");
+  renderLocationTags();
+}
+
+function renderLocationTags() {
+  $("locationTags").innerHTML = selectedLocations.map((name, index) => `
+    <span class="location-tag">${esc(name)}<button type="button" aria-label="Remove ${esc(name)}" onclick="removeLocation(${index})">×</button></span>
+  `).join("");
+}
+
+function renderLocationSuggestions() {
+  const q = $("locationInput").value.trim().toLowerCase();
+  const choices = availableLocations
+    .map(x => x.location_name)
+    .filter(name => !selectedLocations.some(x => x.toLowerCase() === name.toLowerCase()))
+    .filter(name => !q || name.toLowerCase().includes(q))
+    .slice(0, 12);
+  const box = $("locationSuggestions");
+  box.innerHTML = choices.map(name => `<div class="tag-suggestion" onclick='addLocation(${JSON.stringify(name)})'>${esc(name)}</div>`).join("");
+  box.classList.toggle("hidden", choices.length === 0);
+}
+
+function handleLocationKeydown(event) {
+  if (["Enter", ",", ";"].includes(event.key)) {
+    event.preventDefault();
+    addLocation($("locationInput").value.replace(/[;,]+$/, ""));
+  } else if (event.key === "Backspace" && !$("locationInput").value && selectedLocations.length) {
+    removeLocation(selectedLocations.length - 1);
+  }
+}
+
+async function syncStaffLocations(staffId, locationNames) {
+  const names = [...new Set((locationNames || []).map(x => x.trim()).filter(Boolean))];
+  const { error: deleteError } = await supabaseClient.from("staff_locations").delete().eq("staff_id", staffId);
+  if (deleteError) throw deleteError;
+  if (!names.length) return;
+
+  for (const locationName of names) {
+    let location = availableLocations.find(x => x.location_name.toLowerCase() === locationName.toLowerCase());
+    if (!location) {
+      const { data, error } = await supabaseClient.from("locations")
+        .upsert({ location_name: locationName, active: true }, { onConflict: "location_name" })
+        .select("id,location_name").single();
+      if (error) throw error;
+      location = data;
+      availableLocations.push(location);
+    }
+    const { error } = await supabaseClient.from("staff_locations").insert({ staff_id: staffId, location_id: location.id });
+    if (error && error.code !== "23505") throw error;
+  }
 }
 
 async function loadRecords() {
@@ -211,7 +304,9 @@ async function saveRecord(event) {
   const payload = {};
 
   for (const field of RECORD_FIELDS) {
-    if (BOOLEAN_FIELDS.includes(field)) {
+    if (field === "location") {
+      payload[field] = selectedLocations.join("; ") || null;
+    } else if (BOOLEAN_FIELDS.includes(field)) {
       const raw = $(field).value;
       payload[field] = raw === "" ? null : raw === "true";
     } else if (field === "years_experience") {
@@ -224,11 +319,12 @@ async function saveRecord(event) {
   payload.updated_by = currentUser.id;
 
   let result;
+  let savedId = id ? Number(id) : null;
   if (id) {
-    result = await supabaseClient.from("staff_records").update(payload).eq("id", id);
+    result = await supabaseClient.from("staff_records").update(payload).eq("id", id).select("id").single();
   } else {
     payload.created_by = currentUser.id;
-    result = await supabaseClient.from("staff_records").insert(payload);
+    result = await supabaseClient.from("staff_records").insert(payload).select("id").single();
   }
 
   if (result.error) {
@@ -237,6 +333,13 @@ async function saveRecord(event) {
       ? "Certification Number or Employee ID already exists."
       : result.error.message
     );
+  }
+
+  savedId = result.data?.id || savedId;
+  try {
+    await syncStaffLocations(savedId, selectedLocations);
+  } catch (locationError) {
+    return setMessage("formMessage", `Record saved, but locations could not be synchronized: ${locationError.message}`);
   }
 
   setMessage("formMessage", id ? "Record updated successfully." : "Record created successfully.", false);
@@ -249,6 +352,8 @@ async function saveRecord(event) {
 function resetForm(clearMessage = true) {
   $("recordForm").reset();
   $("recordId").value = "";
+  setSelectedLocations([]);
+  $("locationInput").value = "";
   $("formTitle").textContent = "Add Staff Record";
   if (clearMessage) setMessage("formMessage", "");
 }
@@ -258,8 +363,11 @@ function editRecord(id) {
   if (!r || !canEdit(r)) return;
 
   $("recordId").value = r.id;
+  setSelectedLocations(parseLocations(r.location));
   for (const field of RECORD_FIELDS) {
-    if (BOOLEAN_FIELDS.includes(field)) {
+    if (field === "location") {
+      continue;
+    } else if (BOOLEAN_FIELDS.includes(field)) {
       $(field).value = r[field] === null ? "" : String(r[field]);
     } else {
       $(field).value = r[field] ?? "";
@@ -624,11 +732,13 @@ async function runImport() {
         merged.updated_by = currentUser.id;
         const { error } = await supabaseClient.from("staff_records").update(merged).eq("id", item.existing.id);
         if (error) throw error;
+        if (payload.location !== null) await syncStaffLocations(item.existing.id, parseLocations(merged.location));
         updated++;
       } else {
         payload.created_by = currentUser.id;
-        const { error } = await supabaseClient.from("staff_records").insert(payload);
+        const { data: insertedRow, error } = await supabaseClient.from("staff_records").insert(payload).select("id").single();
         if (error) throw error;
+        await syncStaffLocations(insertedRow.id, parseLocations(payload.location));
         inserted++;
       }
     } catch (error) {
@@ -660,7 +770,7 @@ async function runImport() {
 function downloadImportTemplate() {
   const headers = RECORD_FIELDS.map(f => LABELS[f]);
   const example = [
-    "CERT-1001","Example","Employee","Teacher","Example School","2026-08-20","123456789","1990-01-15",
+    "CERT-1001","Example","Employee","Teacher","Example School; District Office","2026-08-20","123456789","1990-01-15",
     "Female","White","EMP-1001","Master's",10,"employee@district.org","personal@example.com","203-555-0100",
     "Yes","Yes","No","Yes","No","Yes","Example template row"
   ];
