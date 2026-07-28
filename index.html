@@ -37,6 +37,7 @@
       <button class="tab active" data-tab="recordsTab">Records</button>
       <button class="tab" data-tab="entryTab">Add / Edit Record</button>
       <button id="auditTabButton" class="tab admin-only hidden" data-tab="auditTab">Audit Log</button>
+      <button id="importTabButton" class="tab admin-only hidden" data-tab="importTab">Import</button>
       <button id="usersTabButton" class="tab admin-only hidden" data-tab="usersTab">Users</button>
     </nav>
 
@@ -199,6 +200,60 @@
         </div>
       </section>
 
+
+      <section id="importTab" class="tab-panel hidden admin-only">
+        <div class="section-heading">
+          <div>
+            <h2>Import Staff Information</h2>
+            <p>Upload an Excel or CSV file. The import is recorded in the audit log under the administrator who runs it.</p>
+          </div>
+          <button id="downloadTemplateButton" class="secondary">Download Template</button>
+        </div>
+
+        <div class="import-card">
+          <div class="import-grid">
+            <label>Staff File
+              <input id="importFile" type="file" accept=".xlsx,.xls,.csv">
+            </label>
+            <label>Duplicate Records
+              <select id="duplicateMode">
+                <option value="update">Update the existing record</option>
+                <option value="skip">Skip the duplicate record</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="import-help">
+            <strong>How duplicates are matched:</strong>
+            Certification Number first, then Employee ID. Blank fields in an uploaded row do not erase existing information when Update is selected.
+          </div>
+
+          <div class="form-actions">
+            <button id="previewImportButton" class="secondary" type="button">Preview File</button>
+            <button id="runImportButton" class="primary" type="button" disabled>Import Records</button>
+            <span id="importMessage" class="message"></span>
+          </div>
+        </div>
+
+        <div id="importPreviewPanel" class="hidden">
+          <div class="summary-grid import-summary">
+            <article><span>Rows Found</span><strong id="importRowsFound">0</strong></article>
+            <article><span>New Records</span><strong id="importNewCount">0</strong></article>
+            <article><span>Duplicates</span><strong id="importDuplicateCount">0</strong></article>
+            <article><span>Rows With Warnings</span><strong id="importWarningCount">0</strong></article>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Row</th><th>Employee</th><th>Certification #</th><th>Employee ID</th><th>Result</th><th>Warnings</th></tr></thead>
+              <tbody id="importPreviewBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="importResultPanel" class="import-result hidden"></div>
+      </section>
+
       <section id="usersTab" class="tab-panel hidden admin-only">
         <div class="section-heading">
           <div>
@@ -226,6 +281,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>

@@ -9,6 +9,7 @@
 - Field-by-field before/after changes
 - User role management
 - CSV export
+- Administrator Excel/CSV roster import with preview, duplicate detection, update/skip options, validation, and import results
 - Responsive professional interface
 - Row Level Security
 
@@ -33,3 +34,15 @@ The SQL policies can be adjusted if users should only see their own records.
 
 ## Important
 This system contains sensitive personnel information. Use a private deployment, strong passwords, HTTPS, and the district's approved data-security process.
+
+
+## Import feature
+1. Sign in as an administrator.
+2. Open the **Import** tab.
+3. Download the template or select an existing `.xlsx`, `.xls`, or `.csv` file.
+4. Click **Preview File**.
+5. Review new records, duplicates, and warnings.
+6. Select whether duplicates should be updated or skipped.
+7. Click **Import Records**.
+
+Duplicates are matched by Certification Number first and Employee ID second. When updating, blank cells in the uploaded file do not erase existing values. Every inserted or updated record is captured by the audit trigger.

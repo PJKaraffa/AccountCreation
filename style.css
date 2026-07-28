@@ -90,3 +90,15 @@ dialog::backdrop { background:rgba(10,25,40,.6); }
   .toolbar,.section-heading { align-items:stretch; flex-direction:column; }
   .toolbar select,.toolbar button { width:100%; }
 }
+
+.import-card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:22px; box-shadow:var(--shadow); margin-bottom:18px; }
+.import-grid { display:grid; grid-template-columns:2fr 1fr; gap:18px; }
+.import-help { margin:18px 0; padding:13px 15px; background:var(--light-blue); border-left:4px solid var(--blue); border-radius:7px; color:var(--navy); }
+.import-summary { margin-top:18px; }
+.import-result { margin-top:18px; padding:18px; background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); }
+.import-result.success { border-left:5px solid var(--green); }
+.import-result.warning { border-left:5px solid var(--amber); }
+.import-result h3 { margin:0 0 10px; color:var(--navy); }
+.preview-warning { color:#8a5800; font-weight:700; }
+.preview-ready { color:#12673f; font-weight:700; }
+@media (max-width:700px) { .import-grid { grid-template-columns:1fr; } }

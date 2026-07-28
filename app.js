@@ -3,6 +3,7 @@ let currentProfile = null;
 let records = [];
 let auditRows = [];
 let profiles = [];
+let importPreviewRows = [];
 
 const BOOLEAN_FIELDS = [
   "nda_signed","power_school","previous_boe",
@@ -57,6 +58,10 @@ function bindEvents() {
   $("auditSearch").addEventListener("input", renderAudit);
   $("auditActionFilter").addEventListener("change", renderAudit);
   $("refreshUsersButton").addEventListener("click", loadUsers);
+  $("previewImportButton").addEventListener("click", previewImportFile);
+  $("runImportButton").addEventListener("click", runImport);
+  $("downloadTemplateButton").addEventListener("click", downloadImportTemplate);
+  $("importFile").addEventListener("change", clearImportPreview);
 
   $("closeDialogButton").addEventListener("click", () => $("detailsDialog").close());
 }
@@ -404,6 +409,265 @@ async function saveRole(id) {
   if (error) return alert(error.message);
   await loadUsers();
   alert("Role updated.");
+}
+
+
+const IMPORT_HEADERS = {
+  cert_number: ["certno", "cert no", "cert number", "certification number", "certificate number"],
+  last_name: ["last name", "lastname"],
+  first_name: ["first name", "firstname"],
+  position: ["position", "job title", "title"],
+  location: ["location", "school", "work location"],
+  doh: ["doh", "date of hire", "hire date"],
+  ein: ["ein"],
+  dob: ["dob", "date of birth", "birth date"],
+  gender: ["gender", "sex"],
+  race_ethnicity: ["race/ethnicity", "race ethnicity", "race", "ethnicity", "race/ethnic"],
+  employee_id: ["id", "employee id", "employeeid", "staff id"],
+  degree: ["degree", "highest degree"],
+  years_experience: ["yrs exp", "years experience", "years of experience", "experience"],
+  district_email: ["district email", "work email"],
+  email: ["email", "personal email"],
+  cell_phone: ["cell phone #", "cell phone", "phone", "mobile", "cell"],
+  nda_signed: ["nda signed", "nda"],
+  power_school: ["power school", "powerschool"],
+  previous_boe: ["previous boe", "prior boe"],
+  data_management_1: ["data mgmt 1", "data management 1", "data mgmt"],
+  data_management_2: ["data mgmt 2", "data management 2"],
+  account_created: ["account?", "account created", "account"],
+  note: ["note", "notes"]
+};
+
+const ALLOWED_DEGREES = ["Associate", "Bachelor's", "Master's", "6th Year", "Doctorate"];
+const ALLOWED_RACES = [
+  "Hispanic/Latino (of any race)",
+  "American Indian or Alaska Native",
+  "Asian",
+  "Black or African American",
+  "Native Hawaiian or Other Pacific Islander",
+  "White",
+  "Two or More Races"
+];
+
+function normalizeHeader(value) {
+  return String(value ?? "").trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+}
+
+function buildHeaderMap(headers) {
+  const normalized = headers.map(normalizeHeader);
+  const map = {};
+  for (const [field, aliases] of Object.entries(IMPORT_HEADERS)) {
+    const index = normalized.findIndex(h => aliases.includes(h));
+    if (index >= 0) map[field] = headers[index];
+  }
+  return map;
+}
+
+function normalizeBoolean(value) {
+  if (value === true || value === false) return value;
+  const text = String(value ?? "").trim().toLowerCase();
+  if (["yes","y","true","1","x","complete","completed","signed"].includes(text)) return true;
+  if (["no","n","false","0","incomplete","not signed"].includes(text)) return false;
+  return null;
+}
+
+function normalizeDate(value) {
+  if (value === null || value === undefined || value === "") return null;
+  if (value instanceof Date && !isNaN(value)) return value.toISOString().slice(0,10);
+  if (typeof value === "number") {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed) return `${parsed.y}-${String(parsed.m).padStart(2,"0")}-${String(parsed.d).padStart(2,"0")}`;
+  }
+  const date = new Date(value);
+  return isNaN(date) ? null : date.toISOString().slice(0,10);
+}
+
+function normalizeText(value) {
+  const text = String(value ?? "").trim();
+  return text || null;
+}
+
+function rowToPayload(row, headerMap) {
+  const payload = {};
+  for (const field of RECORD_FIELDS) {
+    const sourceHeader = headerMap[field];
+    const raw = sourceHeader ? row[sourceHeader] : null;
+    if (BOOLEAN_FIELDS.includes(field)) payload[field] = normalizeBoolean(raw);
+    else if (["doh","dob"].includes(field)) payload[field] = normalizeDate(raw);
+    else if (field === "years_experience") {
+      const number = Number(raw);
+      payload[field] = raw === null || raw === undefined || raw === "" || Number.isNaN(number) ? null : number;
+    } else payload[field] = normalizeText(raw);
+  }
+  return payload;
+}
+
+function validateImportPayload(payload) {
+  const warnings = [];
+  if (!payload.cert_number && !payload.employee_id) warnings.push("Missing both Certification Number and Employee ID");
+  if (!payload.first_name && !payload.last_name) warnings.push("Missing employee name");
+  if (payload.degree && !ALLOWED_DEGREES.includes(payload.degree)) warnings.push(`Unknown degree: ${payload.degree}`);
+  if (payload.race_ethnicity && !ALLOWED_RACES.includes(payload.race_ethnicity)) warnings.push(`Unknown race/ethnicity: ${payload.race_ethnicity}`);
+  if (payload.years_experience !== null && payload.years_experience < 0) warnings.push("Years Experience cannot be negative");
+  return warnings;
+}
+
+function findExistingRecord(payload) {
+  const cert = (payload.cert_number || "").toLowerCase();
+  const employeeId = (payload.employee_id || "").toLowerCase();
+  return records.find(r =>
+    (cert && String(r.cert_number || "").toLowerCase() === cert) ||
+    (employeeId && String(r.employee_id || "").toLowerCase() === employeeId)
+  );
+}
+
+function clearImportPreview() {
+  importPreviewRows = [];
+  $("importPreviewPanel").classList.add("hidden");
+  $("importResultPanel").classList.add("hidden");
+  $("runImportButton").disabled = true;
+  setMessage("importMessage", "");
+}
+
+async function previewImportFile() {
+  if (currentProfile?.role !== "admin") return;
+  const file = $("importFile").files[0];
+  if (!file) return setMessage("importMessage", "Select an Excel or CSV file first.");
+
+  setMessage("importMessage", "Reading file...", false);
+  try {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { type: "array", cellDates: true });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true });
+    if (!rawRows.length) throw new Error("The first worksheet does not contain any data rows.");
+
+    const headers = Object.keys(rawRows[0]);
+    const headerMap = buildHeaderMap(headers);
+    const requiredColumnsFound = ["first_name","last_name","cert_number","employee_id"].some(f => headerMap[f]);
+    if (!requiredColumnsFound) throw new Error("The file headings could not be recognized. Use the downloadable template or the original headings shown in the system.");
+
+    importPreviewRows = rawRows.map((row, index) => {
+      const payload = rowToPayload(row, headerMap);
+      const existing = findExistingRecord(payload);
+      const warnings = validateImportPayload(payload);
+      return { rowNumber: index + 2, payload, existing, warnings };
+    }).filter(item => Object.values(item.payload).some(v => v !== null));
+
+    renderImportPreview();
+    $("runImportButton").disabled = importPreviewRows.length === 0;
+    setMessage("importMessage", `${importPreviewRows.length} data rows are ready for review.`, false);
+  } catch (error) {
+    clearImportPreview();
+    setMessage("importMessage", error.message || "Unable to read the file.");
+  }
+}
+
+function renderImportPreview() {
+  const newCount = importPreviewRows.filter(r => !r.existing).length;
+  const duplicateCount = importPreviewRows.filter(r => r.existing).length;
+  const warningCount = importPreviewRows.filter(r => r.warnings.length).length;
+
+  $("importRowsFound").textContent = importPreviewRows.length;
+  $("importNewCount").textContent = newCount;
+  $("importDuplicateCount").textContent = duplicateCount;
+  $("importWarningCount").textContent = warningCount;
+
+  $("importPreviewBody").innerHTML = importPreviewRows.slice(0,250).map(item => {
+    const p = item.payload;
+    const result = item.warnings.length
+      ? `<span class="preview-warning">Review</span>`
+      : `<span class="preview-ready">${item.existing ? "Duplicate" : "New"}</span>`;
+    return `<tr>
+      <td>${item.rowNumber}</td>
+      <td>${esc(`${p.first_name || ""} ${p.last_name || ""}`.trim())}</td>
+      <td>${esc(p.cert_number)}</td>
+      <td>${esc(p.employee_id)}</td>
+      <td>${result}</td>
+      <td>${esc(item.warnings.join("; "))}</td>
+    </tr>`;
+  }).join("") + (importPreviewRows.length > 250 ? `<tr><td colspan="6">Preview limited to the first 250 rows. All ${importPreviewRows.length} rows will be processed.</td></tr>` : "");
+
+  $("importPreviewPanel").classList.remove("hidden");
+}
+
+async function runImport() {
+  if (currentProfile?.role !== "admin" || !importPreviewRows.length) return;
+  const invalid = importPreviewRows.filter(r => r.warnings.some(w => w.startsWith("Unknown degree") || w.startsWith("Unknown race") || w.includes("cannot be negative")));
+  if (invalid.length) {
+    return setMessage("importMessage", `Correct the ${invalid.length} row(s) with invalid dropdown or numeric values before importing.`);
+  }
+
+  const duplicateMode = $("duplicateMode").value;
+  $("runImportButton").disabled = true;
+  $("previewImportButton").disabled = true;
+  setMessage("importMessage", "Importing records...", false);
+
+  let inserted = 0, updated = 0, skipped = 0, errors = 0;
+  const errorDetails = [];
+
+  for (let i = 0; i < importPreviewRows.length; i++) {
+    const item = importPreviewRows[i];
+    const payload = { ...item.payload, updated_by: currentUser.id };
+
+    try {
+      if (item.existing) {
+        if (duplicateMode === "skip") {
+          skipped++;
+          continue;
+        }
+        // Blank upload cells do not overwrite populated values.
+        const merged = {};
+        for (const field of RECORD_FIELDS) {
+          merged[field] = payload[field] === null ? item.existing[field] : payload[field];
+        }
+        merged.updated_by = currentUser.id;
+        const { error } = await supabaseClient.from("staff_records").update(merged).eq("id", item.existing.id);
+        if (error) throw error;
+        updated++;
+      } else {
+        payload.created_by = currentUser.id;
+        const { error } = await supabaseClient.from("staff_records").insert(payload);
+        if (error) throw error;
+        inserted++;
+      }
+    } catch (error) {
+      errors++;
+      errorDetails.push(`Row ${item.rowNumber}: ${error.message || "Import failed"}`);
+    }
+
+    if ((i + 1) % 20 === 0 || i === importPreviewRows.length - 1) {
+      setMessage("importMessage", `Processed ${i + 1} of ${importPreviewRows.length} rows...`, false);
+    }
+  }
+
+  await loadRecords();
+  await loadAudit();
+
+  const result = $("importResultPanel");
+  result.className = `import-result ${errors ? "warning" : "success"}`;
+  result.innerHTML = `
+    <h3>Import Complete</h3>
+    <p><strong>${inserted}</strong> added &nbsp; | &nbsp; <strong>${updated}</strong> updated &nbsp; | &nbsp; <strong>${skipped}</strong> skipped &nbsp; | &nbsp; <strong>${errors}</strong> errors</p>
+    ${errorDetails.length ? `<details><summary>View errors</summary><ul>${errorDetails.slice(0,100).map(e => `<li>${esc(e)}</li>`).join("")}</ul></details>` : ""}
+  `;
+  result.classList.remove("hidden");
+  setMessage("importMessage", errors ? "Import finished with some errors." : "Import completed successfully.", !errors);
+  $("runImportButton").disabled = false;
+  $("previewImportButton").disabled = false;
+}
+
+function downloadImportTemplate() {
+  const headers = RECORD_FIELDS.map(f => LABELS[f]);
+  const example = [
+    "CERT-1001","Example","Employee","Teacher","Example School","2026-08-20","123456789","1990-01-15",
+    "Female","White","EMP-1001","Master's",10,"employee@district.org","personal@example.com","203-555-0100",
+    "Yes","Yes","No","Yes","No","Yes","Example template row"
+  ];
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, example]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Staff Import");
+  XLSX.writeFile(workbook, "staff-import-template.xlsx");
 }
 
 function exportCsv() {
