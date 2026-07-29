@@ -117,3 +117,27 @@ dialog::backdrop { background:rgba(10,25,40,.6); }
 .tag-suggestion:hover { background:var(--light-blue); }
 .location-field small { color:var(--muted); font-weight:400; }
 @media (max-width:700px) { .location-field { grid-column:span 1; } }
+
+/* Full-entry table */
+#recordsTab table { min-width: 3400px; }
+#recordsTab th, #recordsTab td { white-space: nowrap; }
+#recordsTab .wide-cell { min-width: 220px; white-space: normal; }
+#recordsTab .note-cell {
+  min-width: 240px;
+  max-width: 340px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#recordsTab .sticky-left {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: #ffffff;
+  box-shadow: 3px 0 8px rgba(18, 52, 91, .08);
+}
+#recordsTab thead .sticky-left {
+  background: #eef4f8;
+  z-index: 5;
+}
+#recordsTab tbody tr:hover .sticky-left { background: #f8fbfd; }

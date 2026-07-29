@@ -265,25 +265,42 @@ function renderRecords() {
   const rows = filteredRecords();
   $("recordsBody").innerHTML = rows.length ? rows.map(r => `
     <tr>
-      <td><span class="status ${r.is_complete ? "complete" : "incomplete"}">${r.is_complete ? "Complete" : `${r.completion_percent}%`}</span></td>
-      <td>${esc(r.cert_number)}</td>
-      <td>${esc(r.last_name)}</td>
-      <td>${esc(r.first_name)}</td>
-      <td>${esc(r.position)}</td>
-      <td>${esc(r.location)}</td>
-      <td>${esc(r.degree)}</td>
-      <td>${esc(r.district_email)}</td>
-      <td>${formatDateTime(r.updated_at)}</td>
-      <td>${esc(r.updated_by_name)}</td>
-      <td>
+      <td class="sticky-left">
         <div class="action-row">
           <button class="secondary small-button" onclick="viewRecord(${r.id})">View</button>
           ${canEdit(r) ? `<button class="primary small-button" onclick="editRecord(${r.id})">Edit</button>` : ""}
           ${currentProfile.role === "admin" ? `<button class="danger small-button" onclick="deleteRecord(${r.id})">Delete</button>` : ""}
         </div>
       </td>
+      <td><span class="status ${r.is_complete ? "complete" : "incomplete"}">${r.is_complete ? "Complete" : `${r.completion_percent}%`}</span></td>
+      <td>${esc(r.cert_number)}</td>
+      <td>${esc(r.last_name)}</td>
+      <td>${esc(r.first_name)}</td>
+      <td>${esc(r.position)}</td>
+      <td class="wide-cell">${esc(r.location)}</td>
+      <td>${formatDateOnly(r.doh)}</td>
+      <td>${esc(r.ein)}</td>
+      <td>${formatDateOnly(r.dob)}</td>
+      <td>${esc(r.gender)}</td>
+      <td class="wide-cell">${esc(r.race_ethnicity)}</td>
+      <td>${esc(r.employee_id)}</td>
+      <td>${esc(r.degree)}</td>
+      <td>${esc(r.years_experience)}</td>
+      <td>${esc(r.district_email)}</td>
+      <td>${esc(r.email)}</td>
+      <td>${esc(r.cell_phone)}</td>
+      <td>${yesNo(r.nda_signed)}</td>
+      <td>${yesNo(r.power_school)}</td>
+      <td>${yesNo(r.previous_boe)}</td>
+      <td>${yesNo(r.data_management_1)}</td>
+      <td>${yesNo(r.data_management_2)}</td>
+      <td>${yesNo(r.account_created)}</td>
+      <td class="note-cell" title="${esc(r.note)}">${esc(r.note)}</td>
+      <td>${formatDateTime(r.created_at)}</td>
+      <td>${formatDateTime(r.updated_at)}</td>
+      <td>${esc(r.updated_by_name)}</td>
     </tr>
-  `).join("") : `<tr><td colspan="11">No matching records.</td></tr>`;
+  `).join("") : `<tr><td colspan="28">No matching records.</td></tr>`;
 }
 
 function updateSummary() {
@@ -824,9 +841,21 @@ function displayValue(value) {
   return value ?? "";
 }
 
+function formatDateOnly(value) {
+  if (!value) return "";
+  const [year, month, day] = String(value).slice(0, 10).split("-");
+  return year && month && day ? `${month}/${day}/${year}` : value;
+}
+
 function formatDateTime(value) {
   if (!value) return "";
   return new Date(value).toLocaleString();
+}
+
+function yesNo(value) {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  return "";
 }
 
 function setMessage(id, text, isError = true) {

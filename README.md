@@ -65,3 +65,13 @@ Allowed values are:
 - NON-CERT
 
 For compatibility with existing installations, the database column is still named `cert_number`, but it stores only these two values. The previous unique index was removed because many employees can share the same classification.
+
+
+## Full entries table
+
+The Records page now shows every field for every employee in one horizontally scrollable table. The Actions column remains fixed on the left so View, Edit, and Delete are always available while scrolling.
+
+- Administrators can edit every record.
+- Regular users can edit records they created.
+- Administrators can delete records.
+- All edits continue to be captured in the audit log.
