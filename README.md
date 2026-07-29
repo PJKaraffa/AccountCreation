@@ -91,3 +91,20 @@ Incomplete records show an exact Missing Information list. Rows are visually hig
 - Red: incomplete and missing a critical identifying or contact field
 
 Administrators can filter to incomplete records, export the filtered list to CSV, and print an incomplete-record checklist.
+
+
+## Split-screen Add/Edit workspace
+
+The Add/Edit Record tab now includes:
+
+- Searchable employee list on the left
+- Complete and Incomplete employee filters
+- Selected employee form on the right
+- Live Complete/Incomplete status banner
+- Live completion percentage and checklist
+- Immediate duplicate checks for Employee ID, district email, and personal email
+- Save, Save & New, Duplicate Record, Cancel, and administrator Delete controls
+- Record creation/update metadata
+- Record-specific audit history for administrators
+
+Only First Name, Last Name, and Employee ID are required to save. This allows partially completed records to be stored and tracked as Incomplete.

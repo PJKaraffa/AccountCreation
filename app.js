@@ -3,6 +3,9 @@ let currentProfile = null;
 let records = [];
 let auditRows = [];
 let profiles = [];
+let workspaceStatus = "all";
+let pendingDuplicateId = null;
+let saveAfterAction = "records";
 let importPreviewRows = [];
 let availableLocations = [];
 let selectedLocations = [];
@@ -49,9 +52,32 @@ function bindEvents() {
     btn.addEventListener("click", () => openTab(btn.dataset.tab))
   );
 
-  $("newRecordButton").addEventListener("click", () => { resetForm(); openTab("entryTab"); });
-  $("cancelEditButton").addEventListener("click", resetForm);
+  $("newRecordButton").addEventListener("click", () => { resetForm(); openTab("entryTab"); renderWorkspaceEmployees(); });
+  $("workspaceNewButton").addEventListener("click", () => { resetForm(); renderWorkspaceEmployees(); });
+  $("clearFormButton").addEventListener("click", resetForm);
+  $("cancelEditButton").addEventListener("click", () => { resetForm(); openTab("recordsTab"); });
   $("recordForm").addEventListener("submit", saveRecord);
+  $("saveNewButton").addEventListener("click", () => {
+    saveAfterAction = "new";
+    $("recordForm").requestSubmit();
+  });
+  $("duplicateRecordButton").addEventListener("click", duplicateCurrentRecord);
+  $("deleteEditorButton").addEventListener("click", deleteCurrentEditorRecord);
+  $("workspaceSearch").addEventListener("input", renderWorkspaceEmployees);
+  document.querySelectorAll(".browser-filter").forEach(button => {
+    button.addEventListener("click", () => {
+      workspaceStatus = button.dataset.workspaceStatus;
+      document.querySelectorAll(".browser-filter").forEach(x => x.classList.remove("active"));
+      button.classList.add("active");
+      renderWorkspaceEmployees();
+    });
+  });
+  $("openDuplicateButton").addEventListener("click", () => {
+    if (pendingDuplicateId) editRecord(pendingDuplicateId);
+  });
+  $("refreshRecordHistoryButton").addEventListener("click", renderCurrentRecordHistory);
+  $("recordForm").addEventListener("input", handleLiveFormChange);
+  $("recordForm").addEventListener("change", handleLiveFormChange);
   $("searchInput").addEventListener("input", renderRecords);
   $("statusFilter").addEventListener("change", renderRecords);
   $("exportButton").addEventListener("click", exportCsv);
@@ -138,6 +164,10 @@ function openTab(tabId) {
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
   $(tabId).classList.remove("hidden");
   document.querySelector(`.tab[data-tab="${tabId}"]`)?.classList.add("active");
+  if (tabId === "entryTab") {
+    renderWorkspaceEmployees();
+    updateLiveCompletion();
+  }
 }
 
 
@@ -239,11 +269,13 @@ async function loadRecords() {
   const profileMap = Object.fromEntries((profileRows || []).map(p => [p.id, p.full_name || p.email]));
   records = (data || []).map(r => ({
     ...r,
+    created_by_name: profileMap[r.created_by] || "Unknown",
     updated_by_name: profileMap[r.updated_by] || profileMap[r.created_by] || "Unknown"
   }));
 
   renderRecords();
   updateSummary();
+  renderWorkspaceEmployees();
 }
 
 function filteredRecords() {
@@ -331,6 +363,19 @@ async function saveRecord(event) {
   const id = $("recordId").value;
   const payload = {};
 
+  if (!$("first_name").value.trim() || !$("last_name").value.trim() || !$("employee_id").value.trim()) {
+    saveAfterAction = "records";
+    return setMessage("formMessage", "First Name, Last Name, and Employee ID are required.");
+  }
+
+  const duplicate = findLiveDuplicate();
+  if (duplicate) {
+    saveAfterAction = "records";
+    pendingDuplicateId = duplicate.id;
+    showDuplicateWarning(duplicate);
+    return setMessage("formMessage", "This Employee ID or email is already assigned to another record.");
+  }
+
   for (const field of RECORD_FIELDS) {
     if (field === "location") {
       payload[field] = selectedLocations.join("; ") || null;
@@ -370,11 +415,21 @@ async function saveRecord(event) {
     return setMessage("formMessage", `Record saved, but locations could not be synchronized: ${locationError.message}`);
   }
 
-  setMessage("formMessage", id ? "Record updated successfully." : "Record created successfully.", false);
-  resetForm(false);
+  const successMessage = id ? "Record updated successfully." : "Record created successfully.";
   await loadRecords();
   if (currentProfile.role === "admin") await loadAudit();
-  openTab("recordsTab");
+
+  if (saveAfterAction === "new") {
+    resetForm(false);
+    setMessage("formMessage", `${successMessage} Ready for a new employee.`, false);
+    openTab("entryTab");
+  } else {
+    const savedRecord = records.find(r => r.id === savedId);
+    if (savedRecord) editRecord(savedId);
+    setMessage("formMessage", successMessage, false);
+    openTab("entryTab");
+  }
+  saveAfterAction = "records";
 }
 
 function resetForm(clearMessage = true) {
@@ -383,6 +438,13 @@ function resetForm(clearMessage = true) {
   setSelectedLocations([]);
   $("locationInput").value = "";
   $("formTitle").textContent = "Add Staff Record";
+  $("deleteEditorButton").classList.add("hidden");
+  pendingDuplicateId = null;
+  $("duplicateWarning").classList.add("hidden");
+  updateRecordMetadata(null);
+  renderCurrentRecordHistory();
+  updateLiveCompletion();
+  highlightWorkspaceSelection(null);
   if (clearMessage) setMessage("formMessage", "");
 }
 
@@ -403,9 +465,216 @@ function editRecord(id) {
   }
 
   $("formTitle").textContent = `Edit ${r.first_name || ""} ${r.last_name || ""}`;
+  $("deleteEditorButton").classList.toggle("hidden", currentProfile.role !== "admin");
+  pendingDuplicateId = null;
+  $("duplicateWarning").classList.add("hidden");
+  updateRecordMetadata(r);
+  updateLiveCompletion();
+  highlightWorkspaceSelection(r.id);
+  renderCurrentRecordHistory();
   setMessage("formMessage", "");
   openTab("entryTab");
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+
+function renderWorkspaceEmployees() {
+  const container = $("workspaceEmployeeList");
+  if (!container) return;
+
+  const q = $("workspaceSearch")?.value.trim().toLowerCase() || "";
+  const currentId = Number($("recordId")?.value || 0);
+
+  const rows = records
+    .filter(r => {
+      const text = `${r.last_name || ""} ${r.first_name || ""} ${r.employee_id || ""} ${r.position || ""} ${r.location || ""}`.toLowerCase();
+      const statusMatch =
+        workspaceStatus === "all" ||
+        (workspaceStatus === "complete" && r.is_complete) ||
+        (workspaceStatus === "incomplete" && !r.is_complete);
+      return (!q || text.includes(q)) && statusMatch;
+    })
+    .sort((a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`));
+
+  $("browserCount").textContent = rows.length;
+  container.innerHTML = rows.length ? rows.map(r => `
+    <button type="button"
+      class="employee-list-item ${r.id === currentId ? "selected" : ""}"
+      onclick="${canEdit(r) ? `editRecord(${r.id})` : `viewRecord(${r.id})`}">
+      <span class="employee-list-main">
+        <strong>${esc(`${r.last_name || ""}, ${r.first_name || ""}`)}</strong>
+        <small>${esc(r.position || "No position")} · ID ${esc(r.employee_id || "—")}</small>
+      </span>
+      <span class="mini-status ${r.is_complete ? "complete" : "incomplete"}">${r.is_complete ? "Complete" : "Incomplete"}</span>
+    </button>
+  `).join("") : `<p class="empty-state">No employees found.</p>`;
+}
+
+function highlightWorkspaceSelection(id) {
+  document.querySelectorAll(".employee-list-item").forEach(item => item.classList.remove("selected"));
+  if (id) {
+    const selected = [...document.querySelectorAll(".employee-list-item")]
+      .find(item => item.getAttribute("onclick")?.includes(`(${id})`));
+    selected?.classList.add("selected");
+  }
+}
+
+function getFormSnapshot() {
+  const snapshot = {};
+  for (const field of RECORD_FIELDS) {
+    if (field === "location") {
+      snapshot[field] = selectedLocations.join("; ");
+    } else if (BOOLEAN_FIELDS.includes(field)) {
+      const raw = $(field).value;
+      snapshot[field] = raw === "" ? null : raw === "true";
+    } else {
+      snapshot[field] = $(field).value.trim();
+    }
+  }
+  return snapshot;
+}
+
+function handleLiveFormChange() {
+  updateLiveCompletion();
+  checkForDuplicateLive();
+}
+
+function updateLiveCompletion() {
+  if (!$("liveChecklist")) return;
+  const snapshot = getFormSnapshot();
+  const missing = getMissingFields(snapshot);
+  const completeCount = RECORD_FIELDS.length - missing.length;
+  const percent = Math.round((completeCount / RECORD_FIELDS.length) * 100);
+  const complete = missing.length === 0;
+
+  $("completionStatusText").textContent = complete ? "COMPLETE" : "INCOMPLETE";
+  $("completionSummary").textContent = complete
+    ? "Every field is filled out."
+    : `${missing.length} field${missing.length === 1 ? "" : "s"} still missing.`;
+  $("completionPercent").textContent = `${percent}%`;
+  $("completionProgress").style.width = `${percent}%`;
+  $("completionBanner").classList.toggle("complete", complete);
+  $("completionBanner").classList.toggle("incomplete", !complete);
+
+  $("liveChecklist").innerHTML = RECORD_FIELDS.map(field => {
+    const isMissing = missing.includes(LABELS[field]);
+    return `<div class="checklist-item ${isMissing ? "missing" : "done"}">
+      <span>${isMissing ? "✕" : "✓"}</span>
+      <span>${esc(LABELS[field])}</span>
+    </div>`;
+  }).join("");
+}
+
+function findLiveDuplicate() {
+  const currentId = Number($("recordId").value || 0);
+  const employeeId = $("employee_id").value.trim().toLowerCase();
+  const districtEmail = $("district_email").value.trim().toLowerCase();
+  const personalEmail = $("email").value.trim().toLowerCase();
+
+  if (!employeeId && !districtEmail && !personalEmail) return null;
+
+  return records.find(r => {
+    if (r.id === currentId) return false;
+    return (
+      (employeeId && String(r.employee_id || "").trim().toLowerCase() === employeeId) ||
+      (districtEmail && String(r.district_email || "").trim().toLowerCase() === districtEmail) ||
+      (personalEmail && String(r.email || "").trim().toLowerCase() === personalEmail)
+    );
+  }) || null;
+}
+
+function checkForDuplicateLive() {
+  const duplicate = findLiveDuplicate();
+  if (!duplicate) {
+    pendingDuplicateId = null;
+    $("duplicateWarning").classList.add("hidden");
+    return;
+  }
+  pendingDuplicateId = duplicate.id;
+  showDuplicateWarning(duplicate);
+}
+
+function showDuplicateWarning(record) {
+  const matches = [];
+  const employeeId = $("employee_id").value.trim().toLowerCase();
+  const districtEmail = $("district_email").value.trim().toLowerCase();
+  const personalEmail = $("email").value.trim().toLowerCase();
+
+  if (employeeId && String(record.employee_id || "").toLowerCase() === employeeId) matches.push("Employee ID");
+  if (districtEmail && String(record.district_email || "").toLowerCase() === districtEmail) matches.push("District Email");
+  if (personalEmail && String(record.email || "").toLowerCase() === personalEmail) matches.push("Personal Email");
+
+  $("duplicateWarningText").textContent =
+    `${matches.join(", ")} matches ${record.first_name || ""} ${record.last_name || ""} (${record.position || "No position"}).`;
+  $("duplicateWarning").classList.remove("hidden");
+}
+
+function duplicateCurrentRecord() {
+  const id = Number($("recordId").value || 0);
+  if (!id) {
+    setMessage("formMessage", "Select an existing record before duplicating it.");
+    return;
+  }
+
+  $("recordId").value = "";
+  $("employee_id").value = "";
+  $("district_email").value = "";
+  $("email").value = "";
+  $("formTitle").textContent = `New Record Copied from ${$("first_name").value} ${$("last_name").value}`;
+  $("deleteEditorButton").classList.add("hidden");
+  updateRecordMetadata(null);
+  pendingDuplicateId = null;
+  $("duplicateWarning").classList.add("hidden");
+  updateLiveCompletion();
+  highlightWorkspaceSelection(null);
+  setMessage("formMessage", "Copy created. Enter a new Employee ID and email addresses, then save.", false);
+}
+
+async function deleteCurrentEditorRecord() {
+  const id = Number($("recordId").value || 0);
+  if (!id) return;
+  await deleteRecord(id);
+  resetForm();
+  openTab("recordsTab");
+}
+
+function updateRecordMetadata(record) {
+  const metadata = $("recordMetadata");
+  if (!metadata) return;
+  metadata.innerHTML = `
+    <div><dt>Created By</dt><dd>${esc(record?.created_by_name || record?.updated_by_name || "—")}</dd></div>
+    <div><dt>Created</dt><dd>${record ? formatDateTime(record.created_at) : "—"}</dd></div>
+    <div><dt>Last Updated By</dt><dd>${esc(record?.updated_by_name || "—")}</dd></div>
+    <div><dt>Last Updated</dt><dd>${record ? formatDateTime(record.updated_at) : "—"}</dd></div>
+  `;
+}
+
+function renderCurrentRecordHistory() {
+  const container = $("recordHistory");
+  if (!container || currentProfile?.role !== "admin") return;
+
+  const recordId = Number($("recordId")?.value || 0);
+  if (!recordId) {
+    container.innerHTML = `<p class="muted">Save or select a record to view its history.</p>`;
+    return;
+  }
+
+  const entries = auditRows
+    .filter(a => Number(a.staff_record_id) === recordId)
+    .sort((a, b) => new Date(b.changed_at) - new Date(a.changed_at))
+    .slice(0, 20);
+
+  container.innerHTML = entries.length ? entries.map(a => {
+    const changes = changedFields(a);
+    const detail = a.action === "UPDATE"
+      ? (changes.join(", ") || "Record updated")
+      : (a.action === "INSERT" ? "Record created" : "Record deleted");
+    return `<button type="button" class="history-entry" onclick="viewAudit(${a.id})">
+      <span><strong>${esc(a.action)}</strong> · ${esc(a.changed_by_name)}</span>
+      <small>${formatDateTime(a.changed_at)}</small>
+      <small>${esc(detail)}</small>
+    </button>`;
+  }).join("") : `<p class="muted">No audit history found.</p>`;
 }
 
 function viewRecord(id) {
@@ -454,6 +723,7 @@ async function loadAudit() {
   const profileMap = Object.fromEntries((profileRows || []).map(p => [p.id, p.full_name || p.email]));
   auditRows = (data || []).map(a => ({ ...a, changed_by_name: profileMap[a.changed_by] || "Unknown" }));
   renderAudit();
+  renderCurrentRecordHistory();
 }
 
 function renderAudit() {

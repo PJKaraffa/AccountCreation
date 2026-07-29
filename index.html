@@ -104,109 +104,188 @@
       </section>
 
       <section id="entryTab" class="tab-panel hidden">
-        <div class="section-heading">
+        <div class="workspace-heading">
           <div>
-            <h2 id="formTitle">Add Staff Record</h2>
-            <p>Required fields are marked with an asterisk. The system calculates completion automatically.</p>
+            <h2>Employee Record Workspace</h2>
+            <p>Select an employee on the left or create a new record. Only First Name, Last Name, and Employee ID are required to save; all other fields determine Complete or Incomplete status.</p>
           </div>
-          <button id="cancelEditButton" class="secondary">Clear Form</button>
+          <button id="workspaceNewButton" class="primary">+ New Employee</button>
         </div>
 
-        <form id="recordForm">
-          <input id="recordId" type="hidden">
+        <div class="record-workspace">
+          <aside class="employee-browser">
+            <div class="browser-header">
+              <h3>Employees</h3>
+              <span id="browserCount" class="count-badge">0</span>
+            </div>
+            <input id="workspaceSearch" type="search" placeholder="Search employees...">
+            <div class="browser-filters">
+              <button type="button" class="browser-filter active" data-workspace-status="all">All</button>
+              <button type="button" class="browser-filter" data-workspace-status="complete">Complete</button>
+              <button type="button" class="browser-filter" data-workspace-status="incomplete">Incomplete</button>
+            </div>
+            <div id="workspaceEmployeeList" class="employee-list"></div>
+          </aside>
 
-          <div class="form-section">
-            <h3>Employee Information</h3>
-            <div class="form-grid">
-              <label>CERT/NON-CERT *
-                <select id="cert_number" required>
-                  <option value="">Select...</option>
-                  <option value="CERT">CERT</option>
-                  <option value="NON-CERT">NON-CERT</option>
-                </select>
-              </label>
-              <label>Last Name *<input id="last_name" required></label>
-              <label>First Name *<input id="first_name" required></label>
-              <label>Position *<input id="position" required></label>
-              <label class="location-field">Location(s) *
-                <div id="locationSelector" class="tag-selector">
-                  <div id="locationTags" class="tag-list"></div>
-                  <input id="locationInput" type="text" placeholder="Type a location and press Enter" autocomplete="off">
-                  <div id="locationSuggestions" class="tag-suggestions hidden"></div>
+          <div class="editor-panel">
+            <div id="completionBanner" class="completion-banner incomplete">
+              <div>
+                <span id="completionStatusText" class="completion-title">INCOMPLETE</span>
+                <p id="completionSummary">Start entering employee information.</p>
+              </div>
+              <strong id="completionPercent">0%</strong>
+            </div>
+
+            <div class="progress-track" aria-label="Record completion">
+              <div id="completionProgress" class="progress-fill" style="width:0%"></div>
+            </div>
+
+            <div class="editor-layout">
+              <form id="recordForm">
+                <input id="recordId" type="hidden">
+
+                <div class="section-heading compact-heading">
+                  <div>
+                    <h2 id="formTitle">Add Staff Record</h2>
+                    <p>Fields marked with * are required to save.</p>
+                  </div>
+                  <button id="clearFormButton" type="button" class="secondary">Clear Form</button>
                 </div>
-                <small>Select one or more locations. Separate imported locations with semicolons.</small>
-                <input id="location" type="hidden">
-              </label>
-              <label>Date of Hire *<input id="doh" type="date" required></label>
-              <label>EIN *<input id="ein" required></label>
-              <label>Date of Birth *<input id="dob" type="date" required></label>
-              <label>Gender *
-                <select id="gender" required>
-                  <option value="">Select...</option>
-                  <option>Female</option>
-                  <option>Male</option>
-                  <option>Nonbinary</option>
-                  <option>Prefer not to answer</option>
-                </select>
-              </label>
-              <label>Race/Ethnicity *
-                <select id="race_ethnicity" required>
-                  <option value="">Select...</option>
-                  <option>Hispanic/Latino (of any race)</option>
-                  <option>American Indian or Alaska Native</option>
-                  <option>Asian</option>
-                  <option>Black or African American</option>
-                  <option>Native Hawaiian or Other Pacific Islander</option>
-                  <option>White</option>
-                  <option>Two or More Races</option>
-                </select>
-              </label>
-              <label>Employee ID *<input id="employee_id" required></label>
-              <label>Degree *
-                <select id="degree" required>
-                  <option value="">Select...</option>
-                  <option>Associate</option>
-                  <option>Bachelor's</option>
-                  <option>Master's</option>
-                  <option>6th Year</option>
-                  <option>Doctorate</option>
-                </select>
-              </label>
-              <label>Years Experience *<input id="years_experience" type="number" min="0" step="0.01" required></label>
+
+                <div id="duplicateWarning" class="duplicate-warning hidden">
+                  <div>
+                    <strong>Possible duplicate record</strong>
+                    <p id="duplicateWarningText"></p>
+                  </div>
+                  <button id="openDuplicateButton" type="button" class="secondary">Open Existing Record</button>
+                </div>
+
+                <div class="form-section">
+                  <h3>Employee Information</h3>
+                  <div class="form-grid">
+                    <label>CERT/NON-CERT
+                      <select id="cert_number">
+                        <option value="">Select...</option>
+                        <option value="CERT">CERT</option>
+                        <option value="NON-CERT">NON-CERT</option>
+                      </select>
+                    </label>
+                    <label>Last Name *<input id="last_name" required></label>
+                    <label>First Name *<input id="first_name" required></label>
+                    <label>Position<input id="position"></label>
+                    <label class="location-field">Location(s)
+                      <div id="locationSelector" class="tag-selector">
+                        <div id="locationTags" class="tag-list"></div>
+                        <input id="locationInput" type="text" placeholder="Type a location and press Enter" autocomplete="off">
+                        <div id="locationSuggestions" class="tag-suggestions hidden"></div>
+                      </div>
+                      <small>Select one or more locations. Separate imported locations with semicolons.</small>
+                      <input id="location" type="hidden">
+                    </label>
+                    <label>Date of Hire<input id="doh" type="date"></label>
+                    <label>EIN<input id="ein"></label>
+                    <label>Date of Birth<input id="dob" type="date"></label>
+                    <label>Gender
+                      <select id="gender">
+                        <option value="">Select...</option>
+                        <option>Female</option>
+                        <option>Male</option>
+                        <option>Nonbinary</option>
+                        <option>Prefer not to answer</option>
+                      </select>
+                    </label>
+                    <label>Race/Ethnicity
+                      <select id="race_ethnicity">
+                        <option value="">Select...</option>
+                        <option>Hispanic/Latino (of any race)</option>
+                        <option>American Indian or Alaska Native</option>
+                        <option>Asian</option>
+                        <option>Black or African American</option>
+                        <option>Native Hawaiian or Other Pacific Islander</option>
+                        <option>White</option>
+                        <option>Two or More Races</option>
+                      </select>
+                    </label>
+                    <label>Employee ID *<input id="employee_id" required></label>
+                    <label>Degree
+                      <select id="degree">
+                        <option value="">Select...</option>
+                        <option>Associate</option>
+                        <option>Bachelor's</option>
+                        <option>Master's</option>
+                        <option>6th Year</option>
+                        <option>Doctorate</option>
+                      </select>
+                    </label>
+                    <label>Years Experience<input id="years_experience" type="number" min="0" step="0.01"></label>
+                  </div>
+                </div>
+
+                <div class="form-section">
+                  <h3>Contact Information</h3>
+                  <div class="form-grid">
+                    <label>District Email<input id="district_email" type="email"></label>
+                    <label>Personal Email<input id="email" type="email"></label>
+                    <label>Cell Phone Number<input id="cell_phone" type="tel"></label>
+                  </div>
+                </div>
+
+                <div class="form-section">
+                  <h3>System Access & Documentation</h3>
+                  <div class="boolean-grid">
+                    <label>NDA Signed<select id="nda_signed"><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
+                    <label>PowerSchool<select id="power_school"><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
+                    <label>Previous BOE<select id="previous_boe"><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
+                    <label>Data Management 1<select id="data_management_1"><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
+                    <label>Data Management 2<select id="data_management_2"><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
+                    <label>Account Created<select id="account_created"><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
+                  </div>
+                </div>
+
+                <div class="form-section">
+                  <h3>Notes</h3>
+                  <label>Note<textarea id="note" rows="4"></textarea></label>
+                </div>
+
+                <div class="form-actions editor-actions">
+                  <button id="saveRecordButton" type="submit" class="primary">Save</button>
+                  <button id="saveNewButton" type="button" class="primary">Save & New</button>
+                  <button id="duplicateRecordButton" type="button" class="secondary">Duplicate Record</button>
+                  <button id="cancelEditButton" type="button" class="secondary">Cancel</button>
+                  <button id="deleteEditorButton" type="button" class="danger hidden">Delete</button>
+                  <span id="formMessage" class="message"></span>
+                </div>
+              </form>
+
+              <aside class="record-sidebar">
+                <section class="side-card">
+                  <h3>Completion Checklist</h3>
+                  <div id="liveChecklist" class="live-checklist"></div>
+                </section>
+
+                <section class="side-card">
+                  <h3>Record Information</h3>
+                  <dl id="recordMetadata" class="metadata-list">
+                    <div><dt>Created By</dt><dd>—</dd></div>
+                    <div><dt>Created</dt><dd>—</dd></div>
+                    <div><dt>Last Updated By</dt><dd>—</dd></div>
+                    <div><dt>Last Updated</dt><dd>—</dd></div>
+                  </dl>
+                </section>
+
+                <section id="recordHistoryCard" class="side-card admin-only hidden">
+                  <div class="side-card-heading">
+                    <h3>Record Audit</h3>
+                    <button id="refreshRecordHistoryButton" type="button" class="link-button">Refresh</button>
+                  </div>
+                  <div id="recordHistory" class="record-history">
+                    <p class="muted">Save or select a record to view its history.</p>
+                  </div>
+                </section>
+              </aside>
             </div>
           </div>
-
-          <div class="form-section">
-            <h3>Contact Information</h3>
-            <div class="form-grid">
-              <label>District Email *<input id="district_email" type="email" required></label>
-              <label>Personal Email *<input id="email" type="email" required></label>
-              <label>Cell Phone Number *<input id="cell_phone" type="tel" required></label>
-            </div>
-          </div>
-
-          <div class="form-section">
-            <h3>System Access & Documentation</h3>
-            <div class="boolean-grid">
-              <label>NDA Signed *<select id="nda_signed" required><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
-              <label>PowerSchool *<select id="power_school" required><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
-              <label>Previous BOE *<select id="previous_boe" required><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
-              <label>Data Management 1 *<select id="data_management_1" required><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
-              <label>Data Management 2 *<select id="data_management_2" required><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
-              <label>Account Created *<select id="account_created" required><option value="">Select...</option><option value="true">Yes</option><option value="false">No</option></select></label>
-            </div>
-          </div>
-
-          <div class="form-section">
-            <h3>Notes</h3>
-            <label>Note *<textarea id="note" rows="4" required></textarea></label>
-          </div>
-
-          <div class="form-actions">
-            <button type="submit" class="primary">Save Record</button>
-            <span id="formMessage" class="message"></span>
-          </div>
-        </form>
+        </div>
       </section>
 
       <section id="auditTab" class="tab-panel hidden admin-only">
