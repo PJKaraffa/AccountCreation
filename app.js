@@ -55,6 +55,11 @@ function bindEvents() {
   $("searchInput").addEventListener("input", renderRecords);
   $("statusFilter").addEventListener("change", renderRecords);
   $("exportButton").addEventListener("click", exportCsv);
+  $("showIncompleteButton").addEventListener("click", () => {
+    $("statusFilter").value = "incomplete";
+    renderRecords();
+  });
+  $("printIncompleteButton").addEventListener("click", printIncompleteChecklist);
 
   $("refreshAuditButton").addEventListener("click", loadAudit);
   $("auditSearch").addEventListener("input", renderAudit);
@@ -263,8 +268,13 @@ function filteredRecords() {
 
 function renderRecords() {
   const rows = filteredRecords();
-  $("recordsBody").innerHTML = rows.length ? rows.map(r => `
-    <tr>
+  $("recordsBody").innerHTML = rows.length ? rows.map(r => {
+    const missing = getMissingFields(r);
+    const critical = hasCriticalMissing(r);
+    const rowClass = r.is_complete ? "complete-row" : (critical ? "critical-row" : "incomplete-row");
+
+    return `
+    <tr class="${rowClass}">
       <td class="sticky-left">
         <div class="action-row">
           <button class="secondary small-button" onclick="viewRecord(${r.id})">View</button>
@@ -272,7 +282,8 @@ function renderRecords() {
           ${currentProfile.role === "admin" ? `<button class="danger small-button" onclick="deleteRecord(${r.id})">Delete</button>` : ""}
         </div>
       </td>
-      <td><span class="status ${r.is_complete ? "complete" : "incomplete"}">${r.is_complete ? "Complete" : `${r.completion_percent}%`}</span></td>
+      <td><span class="status ${r.is_complete ? "complete" : "incomplete"}">${r.is_complete ? "Complete" : "Incomplete"}</span></td>
+      <td class="missing-cell">${r.is_complete ? "—" : esc(missing.join(", "))}</td>
       <td>${esc(r.cert_number)}</td>
       <td>${esc(r.last_name)}</td>
       <td>${esc(r.first_name)}</td>
@@ -299,8 +310,8 @@ function renderRecords() {
       <td>${formatDateTime(r.created_at)}</td>
       <td>${formatDateTime(r.updated_at)}</td>
       <td>${esc(r.updated_by_name)}</td>
-    </tr>
-  `).join("") : `<tr><td colspan="28">No matching records.</td></tr>`;
+    </tr>`;
+  }).join("") : `<tr><td colspan="29">No matching records.</td></tr>`;
 }
 
 function updateSummary() {
@@ -409,7 +420,8 @@ function viewRecord(id) {
           <strong>${esc(displayValue(r[field]))}</strong>
         </div>
       `).join("")}
-      <div class="detail-item"><span>Completion</span><strong>${r.is_complete ? "Complete" : `${r.completion_percent}% Complete`}</strong></div>
+      <div class="detail-item"><span>Status</span><strong>${r.is_complete ? "Complete" : "Incomplete"}</strong></div>
+      <div class="detail-item"><span>Missing Information</span><strong>${r.is_complete ? "None" : esc(getMissingFields(r).join(", "))}</strong></div>
       <div class="detail-item"><span>Created</span><strong>${formatDateTime(r.created_at)}</strong></div>
       <div class="detail-item"><span>Last Updated</span><strong>${formatDateTime(r.updated_at)}</strong></div>
       <div class="detail-item"><span>Updated By</span><strong>${esc(r.updated_by_name)}</strong></div>
@@ -803,12 +815,12 @@ function downloadImportTemplate() {
 function exportCsv() {
   const rows = filteredRecords();
   const headers = [
-    "Complete","Completion Percent",...RECORD_FIELDS.map(f => LABELS[f]),
+    "Status","Missing Information",...RECORD_FIELDS.map(f => LABELS[f]),
     "Created At","Updated At","Updated By"
   ];
 
   const data = rows.map(r => [
-    r.is_complete ? "Yes" : "No", r.completion_percent,
+    r.is_complete ? "Complete" : "Incomplete", getMissingFields(r).join("; "),
     ...RECORD_FIELDS.map(f => displayValue(r[f])),
     r.created_at, r.updated_at, r.updated_by_name
   ]);
@@ -839,6 +851,71 @@ function displayValue(value) {
   if (value === true) return "Yes";
   if (value === false) return "No";
   return value ?? "";
+}
+
+function getMissingFields(record) {
+  return RECORD_FIELDS.filter(field => {
+    const value = record[field];
+    if (BOOLEAN_FIELDS.includes(field)) return value === null || value === undefined;
+    return value === null || value === undefined || String(value).trim() === "";
+  }).map(field => LABELS[field]);
+}
+
+function hasCriticalMissing(record) {
+  const criticalFields = [
+    "cert_number", "last_name", "first_name", "position",
+    "location", "employee_id", "district_email"
+  ];
+  return criticalFields.some(field => {
+    const value = record[field];
+    return value === null || value === undefined || String(value).trim() === "";
+  });
+}
+
+function printIncompleteChecklist() {
+  const incomplete = records.filter(r => !r.is_complete);
+  if (!incomplete.length) {
+    alert("There are no incomplete records.");
+    return;
+  }
+
+  const rows = incomplete.map(r => `
+    <tr>
+      <td>${esc(`${r.last_name || ""}, ${r.first_name || ""}`)}</td>
+      <td>${esc(r.employee_id)}</td>
+      <td>${esc(r.location)}</td>
+      <td>${esc(getMissingFields(r).join(", "))}</td>
+    </tr>
+  `).join("");
+
+  const printWindow = window.open("", "_blank");
+  printWindow.document.write(`
+    <!doctype html>
+    <html>
+    <head>
+      <title>Incomplete Staff Records</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 24px; color: #243447; }
+        h1 { margin-bottom: 4px; }
+        p { color: #667788; }
+        table { width: 100%; border-collapse: collapse; margin-top: 18px; }
+        th, td { border: 1px solid #cbd5df; padding: 8px; text-align: left; vertical-align: top; }
+        th { background: #eef4f8; }
+      </style>
+    </head>
+    <body>
+      <h1>Incomplete Staff Records</h1>
+      <p>${incomplete.length} record(s) require additional information.</p>
+      <table>
+        <thead><tr><th>Employee</th><th>Employee ID</th><th>Locations</th><th>Missing Information</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
 }
 
 function formatDateOnly(value) {

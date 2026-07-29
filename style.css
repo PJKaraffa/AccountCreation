@@ -141,3 +141,21 @@ dialog::backdrop { background:rgba(10,25,40,.6); }
   z-index: 5;
 }
 #recordsTab tbody tr:hover .sticky-left { background: #f8fbfd; }
+
+/* Complete / incomplete workflow */
+#recordsTab table { min-width: 3750px; }
+#recordsTab .missing-cell {
+  min-width: 280px;
+  max-width: 420px;
+  white-space: normal;
+  line-height: 1.35;
+}
+#recordsTab tr.complete-row td { background-color: #f1fbf5; }
+#recordsTab tr.incomplete-row td { background-color: #fff9e9; }
+#recordsTab tr.critical-row td { background-color: #fff0ee; }
+#recordsTab tr.complete-row:hover td { background-color: #e6f7ed; }
+#recordsTab tr.incomplete-row:hover td { background-color: #fff3cf; }
+#recordsTab tr.critical-row:hover td { background-color: #ffe3df; }
+#recordsTab tr.complete-row .sticky-left { background-color: #f1fbf5; }
+#recordsTab tr.incomplete-row .sticky-left { background-color: #fff9e9; }
+#recordsTab tr.critical-row .sticky-left { background-color: #fff0ee; }

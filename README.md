@@ -75,3 +75,19 @@ The Records page now shows every field for every employee in one horizontally sc
 - Regular users can edit records they created.
 - Administrators can delete records.
 - All edits continue to be captured in the audit log.
+
+
+## Complete and incomplete workflow
+
+The Records table now uses only two visible statuses:
+
+- Complete
+- Incomplete
+
+Incomplete records show an exact Missing Information list. Rows are visually highlighted:
+
+- Green: complete
+- Yellow: incomplete
+- Red: incomplete and missing a critical identifying or contact field
+
+Administrators can filter to incomplete records, export the filtered list to CSV, and print an incomplete-record checklist.
