@@ -277,7 +277,7 @@ for each row execute function public.audit_staff_record_change();
 
 -- -----------------------------
 -- Completeness view
--- Every listed business field is counted.
+-- Every required business field is counted. Note is optional.
 -- -----------------------------
 create or replace view public.staff_records_with_status
 with (security_invoker = true)
@@ -306,8 +306,7 @@ select
     s.previous_boe is not null and
     s.data_management_1 is not null and
     s.data_management_2 is not null and
-    s.account_created is not null and
-    nullif(btrim(s.note),'') is not null
+    s.account_created is not null
   ) as is_complete,
 
   round(
@@ -333,9 +332,8 @@ select
       (s.previous_boe is not null)::int +
       (s.data_management_1 is not null)::int +
       (s.data_management_2 is not null)::int +
-      (s.account_created is not null)::int +
-      (nullif(btrim(s.note),'') is not null)::int
-    ) / 23.0,
+      (s.account_created is not null)::int
+    ) / 22.0,
     1
   ) as completion_percent
 from public.staff_records s;

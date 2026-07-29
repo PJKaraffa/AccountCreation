@@ -22,6 +22,9 @@ const RECORD_FIELDS = [
   "data_management_1","data_management_2","account_created","note"
 ];
 
+// Note is saved and displayed, but it does not affect Complete/Incomplete status.
+const REQUIRED_COMPLETION_FIELDS = RECORD_FIELDS.filter(field => field !== "note");
+
 const LABELS = {
   cert_number:"CERT/NON-CERT", last_name:"Last Name", first_name:"First Name",
   position:"Position", location:"Location", doh:"Date of Hire", ein:"EIN",
@@ -558,8 +561,8 @@ function updateLiveCompletion() {
   if (!$("liveChecklist")) return;
   const snapshot = getFormSnapshot();
   const missing = getMissingFields(snapshot);
-  const completeCount = RECORD_FIELDS.length - missing.length;
-  const percent = Math.round((completeCount / RECORD_FIELDS.length) * 100);
+  const completeCount = REQUIRED_COMPLETION_FIELDS.length - missing.length;
+  const percent = Math.round((completeCount / REQUIRED_COMPLETION_FIELDS.length) * 100);
   const complete = missing.length === 0;
 
   $("completionStatusText").textContent = complete ? "COMPLETE" : "INCOMPLETE";
@@ -572,6 +575,14 @@ function updateLiveCompletion() {
   $("completionBanner").classList.toggle("incomplete", !complete);
 
   $("liveChecklist").innerHTML = RECORD_FIELDS.map(field => {
+    if (field === "note") {
+      const hasNote = String(snapshot.note || "").trim() !== "";
+      return `<div class="checklist-item optional">
+        <span>${hasNote ? "✓" : "○"}</span>
+        <span>${esc(LABELS[field])} <small>(Optional)</small></span>
+      </div>`;
+    }
+
     const isMissing = missing.includes(LABELS[field]);
     return `<div class="checklist-item ${isMissing ? "missing" : "done"}">
       <span>${isMissing ? "✕" : "✓"}</span>
@@ -1170,7 +1181,7 @@ function displayValue(value) {
 }
 
 function getMissingFields(record) {
-  return RECORD_FIELDS.filter(field => {
+  return REQUIRED_COMPLETION_FIELDS.filter(field => {
     const value = record[field];
     if (BOOLEAN_FIELDS.includes(field)) return value === null || value === undefined;
     return value === null || value === undefined || String(value).trim() === "";

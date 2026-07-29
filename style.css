@@ -282,3 +282,17 @@ dialog::backdrop { background:rgba(10,25,40,.6); }
   .employee-browser { position:static; max-height:420px; }
   .record-sidebar { grid-template-columns:1fr; }
 }
+
+
+/* Optional field indicators */
+.optional-label,
+.checklist-item small {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.checklist-item.optional {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #475569;
+}

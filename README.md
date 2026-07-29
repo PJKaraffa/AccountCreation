@@ -126,3 +126,10 @@ The updated application excludes the currently edited employee from duplicate ch
 - `data_management_2` displays as **Data Mgmt PowerSchool**
 
 The database column names remain unchanged, so no SQL migration is required for these label updates.
+
+
+## Note field
+
+The **Note** field is optional. A blank note does not make an employee record incomplete and is not included in the completion percentage.
+
+For an existing Supabase database, run `MAKE_NOTE_OPTIONAL.sql` once.
