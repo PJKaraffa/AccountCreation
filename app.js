@@ -20,7 +20,7 @@ const RECORD_FIELDS = [
 ];
 
 const LABELS = {
-  cert_number:"Certification Number", last_name:"Last Name", first_name:"First Name",
+  cert_number:"CERT/NON-CERT", last_name:"Last Name", first_name:"First Name",
   position:"Position", location:"Location", doh:"Date of Hire", ein:"EIN",
   dob:"Date of Birth", gender:"Gender", race_ethnicity:"Race/Ethnicity",
   employee_id:"Employee ID", degree:"Degree", years_experience:"Years Experience",
@@ -330,7 +330,7 @@ async function saveRecord(event) {
   if (result.error) {
     const duplicate = result.error.code === "23505";
     return setMessage("formMessage", duplicate
-      ? "Certification Number or Employee ID already exists."
+      ? "Employee ID already exists."
       : result.error.message
     );
   }
@@ -521,7 +521,7 @@ async function saveRole(id) {
 
 
 const IMPORT_HEADERS = {
-  cert_number: ["certno", "cert no", "cert number", "certification number", "certificate number"],
+  cert_number: ["cert/non-cert", "cert non-cert", "cert or non-cert", "cert status", "certification status", "certno", "cert no"],
   last_name: ["last name", "lastname"],
   first_name: ["first name", "firstname"],
   position: ["position", "job title", "title"],
@@ -546,6 +546,7 @@ const IMPORT_HEADERS = {
   note: ["note", "notes"]
 };
 
+const ALLOWED_CERT_STATUSES = ["CERT", "NON-CERT"];
 const ALLOWED_DEGREES = ["Associate", "Bachelor's", "Master's", "6th Year", "Doctorate"];
 const ALLOWED_RACES = [
   "Hispanic/Latino (of any race)",
@@ -600,7 +601,10 @@ function rowToPayload(row, headerMap) {
   for (const field of RECORD_FIELDS) {
     const sourceHeader = headerMap[field];
     const raw = sourceHeader ? row[sourceHeader] : null;
-    if (BOOLEAN_FIELDS.includes(field)) payload[field] = normalizeBoolean(raw);
+    if (field === "cert_number") {
+      const status = normalizeText(raw);
+      payload[field] = status ? status.toUpperCase() : null;
+    } else if (BOOLEAN_FIELDS.includes(field)) payload[field] = normalizeBoolean(raw);
     else if (["doh","dob"].includes(field)) payload[field] = normalizeDate(raw);
     else if (field === "years_experience") {
       const number = Number(raw);
@@ -612,7 +616,8 @@ function rowToPayload(row, headerMap) {
 
 function validateImportPayload(payload) {
   const warnings = [];
-  if (!payload.cert_number && !payload.employee_id) warnings.push("Missing both Certification Number and Employee ID");
+  if (!payload.employee_id) warnings.push("Missing Employee ID");
+  if (payload.cert_number && !ALLOWED_CERT_STATUSES.includes(payload.cert_number.toUpperCase())) warnings.push(`CERT/NON-CERT must be CERT or NON-CERT: ${payload.cert_number}`);
   if (!payload.first_name && !payload.last_name) warnings.push("Missing employee name");
   if (payload.degree && !ALLOWED_DEGREES.includes(payload.degree)) warnings.push(`Unknown degree: ${payload.degree}`);
   if (payload.race_ethnicity && !ALLOWED_RACES.includes(payload.race_ethnicity)) warnings.push(`Unknown race/ethnicity: ${payload.race_ethnicity}`);
@@ -621,11 +626,9 @@ function validateImportPayload(payload) {
 }
 
 function findExistingRecord(payload) {
-  const cert = (payload.cert_number || "").toLowerCase();
   const employeeId = (payload.employee_id || "").toLowerCase();
   return records.find(r =>
-    (cert && String(r.cert_number || "").toLowerCase() === cert) ||
-    (employeeId && String(r.employee_id || "").toLowerCase() === employeeId)
+    employeeId && String(r.employee_id || "").toLowerCase() === employeeId
   );
 }
 
@@ -652,7 +655,7 @@ async function previewImportFile() {
 
     const headers = Object.keys(rawRows[0]);
     const headerMap = buildHeaderMap(headers);
-    const requiredColumnsFound = ["first_name","last_name","cert_number","employee_id"].some(f => headerMap[f]);
+    const requiredColumnsFound = ["first_name","last_name","employee_id"].some(f => headerMap[f]);
     if (!requiredColumnsFound) throw new Error("The file headings could not be recognized. Use the downloadable template or the original headings shown in the system.");
 
     importPreviewRows = rawRows.map((row, index) => {
@@ -701,7 +704,7 @@ function renderImportPreview() {
 
 async function runImport() {
   if (currentProfile?.role !== "admin" || !importPreviewRows.length) return;
-  const invalid = importPreviewRows.filter(r => r.warnings.some(w => w.startsWith("Unknown degree") || w.startsWith("Unknown race") || w.includes("cannot be negative")));
+  const invalid = importPreviewRows.filter(r => r.warnings.some(w => w.startsWith("Unknown degree") || w.startsWith("Unknown race") || w.startsWith("CERT/NON-CERT") || w.includes("cannot be negative")));
   if (invalid.length) {
     return setMessage("importMessage", `Correct the ${invalid.length} row(s) with invalid dropdown or numeric values before importing.`);
   }
@@ -770,7 +773,7 @@ async function runImport() {
 function downloadImportTemplate() {
   const headers = RECORD_FIELDS.map(f => LABELS[f]);
   const example = [
-    "CERT-1001","Example","Employee","Teacher","Example School; District Office","2026-08-20","123456789","1990-01-15",
+    "CERT","Example","Employee","Teacher","Example School; District Office","2026-08-20","123456789","1990-01-15",
     "Female","White","EMP-1001","Master's",10,"employee@district.org","personal@example.com","203-555-0100",
     "Yes","Yes","No","Yes","No","Yes","Example template row"
   ];

@@ -47,10 +47,21 @@ This system contains sensitive personnel information. Use a private deployment, 
 6. Select whether duplicates should be updated or skipped.
 7. Click **Import Records**.
 
-Duplicates are matched by Certification Number first and Employee ID second. When updating, blank cells in the uploaded file do not erase existing values. Every inserted or updated record is captured by the audit trigger.
+Duplicates are matched by Employee ID. When updating, blank cells in the uploaded file do not erase existing values. Every inserted or updated record is captured by the audit trigger.
 
 
 ## Multiple locations
 Users can type a location and press Enter to add it as a tag. Existing locations appear as suggestions. During Excel/CSV import, place multiple locations in the Location column separated by semicolons, for example: `Central High School; District Office`.
 
 Existing installations should rerun the complete updated `schema.sql`; it safely creates the new location tables and migrates existing single-location values.
+
+
+## CERT/NON-CERT correction
+
+The first field is a classification dropdown, not a certification number.
+Allowed values are:
+
+- CERT
+- NON-CERT
+
+For compatibility with existing installations, the database column is still named `cert_number`, but it stores only these two values. The previous unique index was removed because many employees can share the same classification.

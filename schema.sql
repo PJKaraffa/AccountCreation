@@ -23,7 +23,11 @@ create table if not exists public.profiles (
 create table if not exists public.staff_records (
   id bigint generated always as identity primary key,
 
-  cert_number text,
+  -- This legacy column name is retained for compatibility.
+  -- It now stores only CERT or NON-CERT.
+  cert_number text check (
+    cert_number is null or cert_number in ('CERT', 'NON-CERT')
+  ),
   last_name text,
   first_name text,
   position text,
@@ -71,9 +75,25 @@ create table if not exists public.staff_records (
   updated_at timestamptz not null default now()
 );
 
-create unique index if not exists staff_records_cert_number_uq
-  on public.staff_records (lower(cert_number))
-  where cert_number is not null and btrim(cert_number) <> '';
+-- CERT/NON-CERT is a classification shared by many employees, so it must not be unique.
+drop index if exists public.staff_records_cert_number_uq;
+
+-- Safe upgrade for an existing installation.
+-- Any old nonblank certification-number text is converted to CERT.
+update public.staff_records
+set cert_number = case
+  when upper(btrim(cert_number)) in ('NON-CERT', 'NON CERT', 'NONCERT') then 'NON-CERT'
+  when cert_number is null or btrim(cert_number) = '' then null
+  else 'CERT'
+end
+where cert_number is not null;
+
+alter table public.staff_records
+drop constraint if exists staff_records_cert_number_check;
+
+alter table public.staff_records
+add constraint staff_records_cert_number_check
+check (cert_number is null or cert_number in ('CERT', 'NON-CERT'));
 
 create unique index if not exists staff_records_employee_id_uq
   on public.staff_records (lower(employee_id))
