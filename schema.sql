@@ -1,5 +1,5 @@
 -- ============================================================
--- STAFF CERTIFICATION / PERSONNEL TRACKER
+-- ACCOUNT CREATOR
 -- Run this entire script in the Supabase SQL Editor.
 -- ============================================================
 

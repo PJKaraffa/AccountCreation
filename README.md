@@ -1,4 +1,4 @@
-# Staff Certification & Personnel Tracker
+# Account Creator
 
 ## Included
 - Administrator and user login through Supabase Authentication
@@ -108,3 +108,21 @@ The Add/Edit Record tab now includes:
 - Record-specific audit history for administrators
 
 Only First Name, Last Name, and Employee ID are required to save. This allows partially completed records to be stored and tracked as Incomplete.
+
+
+## Editing fix
+
+Run `DATABASE_EDIT_FIX.sql` once in the Supabase SQL Editor if editing an existing employee displays an Employee ID duplicate message.
+
+The original version treated Certification Number as a unique value. Because the field is now CERT/NON-CERT, that obsolete unique index must be removed.
+
+The updated application excludes the currently edited employee from duplicate checks and maps old values such as `CERT-1001` to `CERT` while editing.
+
+
+## Updated display labels
+
+- Application title: **Account Creator**
+- `data_management_1` displays as **Data Mgmnt EDS**
+- `data_management_2` displays as **Data Mgmt PowerSchool**
+
+The database column names remain unchanged, so no SQL migration is required for these label updates.

@@ -29,7 +29,7 @@ const LABELS = {
   employee_id:"Employee ID", degree:"Degree", years_experience:"Years Experience",
   district_email:"District Email", email:"Personal Email", cell_phone:"Cell Phone",
   nda_signed:"NDA Signed", power_school:"PowerSchool", previous_boe:"Previous BOE",
-  data_management_1:"Data Management 1", data_management_2:"Data Management 2",
+  data_management_1:"Data Mgmnt EDS", data_management_2:"Data Mgmt PowerSchool",
   account_created:"Account Created", note:"Note"
 };
 
@@ -368,12 +368,12 @@ async function saveRecord(event) {
     return setMessage("formMessage", "First Name, Last Name, and Employee ID are required.");
   }
 
-  const duplicate = findLiveDuplicate();
+  const duplicate = await findServerDuplicate(id ? Number(id) : null);
   if (duplicate) {
     saveAfterAction = "records";
     pendingDuplicateId = duplicate.id;
     showDuplicateWarning(duplicate);
-    return setMessage("formMessage", "This Employee ID or email is already assigned to another record.");
+    return setMessage("formMessage", "This Employee ID or email is already assigned to another employee.");
   }
 
   for (const field of RECORD_FIELDS) {
@@ -401,11 +401,20 @@ async function saveRecord(event) {
   }
 
   if (result.error) {
-    const duplicate = result.error.code === "23505";
-    return setMessage("formMessage", duplicate
-      ? "Employee ID already exists."
-      : result.error.message
-    );
+    if (result.error.code === "23505") {
+      const constraint = result.error.details || result.error.message || "";
+      if (constraint.toLowerCase().includes("cert_number")) {
+        return setMessage(
+          "formMessage",
+          "The old Certification Number unique index is still installed. Run DATABASE_EDIT_FIX.sql in Supabase, then save again."
+        );
+      }
+      if (constraint.toLowerCase().includes("employee_id")) {
+        return setMessage("formMessage", "That Employee ID is assigned to another employee.");
+      }
+      return setMessage("formMessage", `A duplicate-value database rule blocked this edit: ${constraint}`);
+    }
+    return setMessage("formMessage", result.error.message);
   }
 
   savedId = result.data?.id || savedId;
@@ -457,6 +466,12 @@ function editRecord(id) {
   for (const field of RECORD_FIELDS) {
     if (field === "location") {
       continue;
+    } else if (field === "cert_number") {
+      const certValue = String(r[field] || "").trim().toUpperCase();
+      $(field).value =
+        certValue === "NON-CERT" || certValue === "NON CERT" || certValue === "NONCERT"
+          ? "NON-CERT"
+          : (certValue ? "CERT" : "");
     } else if (BOOLEAN_FIELDS.includes(field)) {
       $(field).value = r[field] === null ? "" : String(r[field]);
     } else {
@@ -563,6 +578,37 @@ function updateLiveCompletion() {
       <span>${esc(LABELS[field])}</span>
     </div>`;
   }).join("");
+}
+
+async function findServerDuplicate(currentRecordId = null) {
+  const employeeId = $("employee_id").value.trim();
+  const districtEmail = $("district_email").value.trim();
+  const personalEmail = $("email").value.trim();
+
+  const checks = [];
+  if (employeeId) checks.push(`employee_id.eq.${escapePostgrestValue(employeeId)}`);
+  if (districtEmail) checks.push(`district_email.ilike.${escapePostgrestValue(districtEmail)}`);
+  if (personalEmail) checks.push(`email.ilike.${escapePostgrestValue(personalEmail)}`);
+  if (!checks.length) return null;
+
+  let query = supabaseClient
+    .from("staff_records")
+    .select("id,first_name,last_name,position,employee_id,district_email,email")
+    .or(checks.join(","))
+    .limit(1);
+
+  if (currentRecordId) query = query.neq("id", currentRecordId);
+
+  const { data, error } = await query;
+  if (error) {
+    console.warn("Duplicate check failed:", error);
+    return findLiveDuplicate();
+  }
+  return data?.[0] || null;
+}
+
+function escapePostgrestValue(value) {
+  return `"${String(value).replaceAll("\\\\", "\\\\\\\\").replaceAll('"', '\\\\"')}"`;
 }
 
 function findLiveDuplicate() {
@@ -839,8 +885,8 @@ const IMPORT_HEADERS = {
   nda_signed: ["nda signed", "nda"],
   power_school: ["power school", "powerschool"],
   previous_boe: ["previous boe", "prior boe"],
-  data_management_1: ["data mgmt 1", "data management 1", "data mgmt"],
-  data_management_2: ["data mgmt 2", "data management 2"],
+  data_management_1: ["data mgmnt eds", "data mgmt eds", "data management eds", "powerschool 1", "data mgmt 1", "data management 1", "data mgmt"],
+  data_management_2: ["data mgmt powerschool", "data management powerschool", "powerschool 2", "data mgmt 2", "data management 2"],
   account_created: ["account?", "account created", "account"],
   note: ["note", "notes"]
 };
