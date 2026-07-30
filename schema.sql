@@ -277,7 +277,7 @@ for each row execute function public.audit_staff_record_change();
 
 -- -----------------------------
 -- Completeness view
--- Every required business field is counted. Note is optional.
+-- Every required business field is counted. EIN and Note are optional.
 -- -----------------------------
 create or replace view public.staff_records_with_status
 with (security_invoker = true)
@@ -291,7 +291,6 @@ select
     nullif(btrim(s.position),'') is not null and
     nullif(btrim(s.location),'') is not null and
     s.doh is not null and
-    nullif(btrim(s.ein),'') is not null and
     s.dob is not null and
     nullif(btrim(s.gender),'') is not null and
     nullif(btrim(s.race_ethnicity),'') is not null and
@@ -317,7 +316,6 @@ select
       (nullif(btrim(s.position),'') is not null)::int +
       (nullif(btrim(s.location),'') is not null)::int +
       (s.doh is not null)::int +
-      (nullif(btrim(s.ein),'') is not null)::int +
       (s.dob is not null)::int +
       (nullif(btrim(s.gender),'') is not null)::int +
       (nullif(btrim(s.race_ethnicity),'') is not null)::int +
@@ -333,7 +331,7 @@ select
       (s.data_management_1 is not null)::int +
       (s.data_management_2 is not null)::int +
       (s.account_created is not null)::int
-    ) / 22.0,
+    ) / 21.0,
     1
   ) as completion_percent
 from public.staff_records s;

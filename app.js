@@ -22,8 +22,12 @@ const RECORD_FIELDS = [
   "data_management_1","data_management_2","account_created","note"
 ];
 
-// Note is saved and displayed, but it does not affect Complete/Incomplete status.
-const REQUIRED_COMPLETION_FIELDS = RECORD_FIELDS.filter(field => field !== "note");
+// EIN and Note are saved and displayed, but they do not affect
+// Complete/Incomplete status or the completion percentage.
+const OPTIONAL_FIELDS = ["ein", "note"];
+const REQUIRED_COMPLETION_FIELDS = RECORD_FIELDS.filter(
+  field => !OPTIONAL_FIELDS.includes(field)
+);
 
 const LABELS = {
   cert_number:"CERT/NON-CERT", last_name:"Last Name", first_name:"First Name",
@@ -554,6 +558,7 @@ function getFormSnapshot() {
 
 function handleLiveFormChange() {
   updateLiveCompletion();
+  updateRequiredFieldHighlighting();
   checkForDuplicateLive();
 }
 
@@ -575,10 +580,11 @@ function updateLiveCompletion() {
   $("completionBanner").classList.toggle("incomplete", !complete);
 
   $("liveChecklist").innerHTML = RECORD_FIELDS.map(field => {
-    if (field === "note") {
-      const hasNote = String(snapshot.note || "").trim() !== "";
+    if (OPTIONAL_FIELDS.includes(field)) {
+      const value = snapshot[field];
+      const hasValue = value !== null && value !== undefined && String(value).trim() !== "";
       return `<div class="checklist-item optional">
-        <span>${hasNote ? "✓" : "○"}</span>
+        <span>${hasValue ? "✓" : "○"}</span>
         <span>${esc(LABELS[field])} <small>(Optional)</small></span>
       </div>`;
     }
@@ -589,6 +595,38 @@ function updateLiveCompletion() {
       <span>${esc(LABELS[field])}</span>
     </div>`;
   }).join("");
+
+  updateRequiredFieldHighlighting(snapshot);
+}
+
+function updateRequiredFieldHighlighting(snapshot = getFormSnapshot()) {
+  for (const field of RECORD_FIELDS) {
+    const control = $(field);
+    const isOptional = OPTIONAL_FIELDS.includes(field);
+
+    if (control) {
+      control.classList.toggle("optional-field", isOptional);
+      control.classList.remove("required-missing", "required-complete");
+
+      if (!isOptional) {
+        const value = snapshot[field];
+        const missing = BOOLEAN_FIELDS.includes(field)
+          ? value === null || value === undefined
+          : value === null || value === undefined || String(value).trim() === "";
+
+        control.classList.toggle("required-missing", missing);
+        control.classList.toggle("required-complete", !missing);
+      }
+    }
+  }
+
+  // Location uses a custom multi-select rather than the hidden location control.
+  const locationBox = document.querySelector(".tag-selector");
+  if (locationBox) {
+    const locationMissing = !String(snapshot.location || "").trim();
+    locationBox.classList.toggle("required-missing", locationMissing);
+    locationBox.classList.toggle("required-complete", !locationMissing);
+  }
 }
 
 async function findServerDuplicate(currentRecordId = null) {

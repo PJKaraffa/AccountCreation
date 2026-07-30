@@ -133,3 +133,15 @@ The database column names remain unchanged, so no SQL migration is required for 
 The **Note** field is optional. A blank note does not make an employee record incomplete and is not included in the completion percentage.
 
 For an existing Supabase database, run `MAKE_NOTE_OPTIONAL.sql` once.
+
+
+## Final completion rules
+
+- **EIN is optional**
+- **Note is optional**
+- Blank required fields display with a red border until they are completed.
+- Completed required fields display with a subtle green border.
+- The application title is **Account Creator**.
+- The HTML includes cache-busting version parameters so browsers load the newest CSS and JavaScript.
+
+For an existing Supabase database, run `MAKE_EIN_AND_NOTE_OPTIONAL.sql` once.

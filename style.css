@@ -296,3 +296,48 @@ dialog::backdrop { background:rgba(10,25,40,.6); }
   border-color: #cbd5e1;
   color: #475569;
 }
+
+
+/* ==========================================================
+   REQUIRED FIELD VISUAL STATUS
+   Required blank fields remain red until completed.
+   EIN and Note are optional and are not marked red.
+   ========================================================== */
+input.required-missing,
+select.required-missing,
+textarea.required-missing,
+.tag-selector.required-missing {
+  border: 2px solid #c62828 !important;
+  background: #fff5f5 !important;
+  box-shadow: 0 0 0 3px rgba(198, 40, 40, .10);
+}
+
+input.required-missing:focus,
+select.required-missing:focus,
+textarea.required-missing:focus,
+.tag-selector.required-missing:focus-within {
+  outline: 3px solid rgba(198, 40, 40, .18) !important;
+  border-color: #b71c1c !important;
+}
+
+input.required-complete,
+select.required-complete,
+textarea.required-complete,
+.tag-selector.required-complete {
+  border-color: #4f9f72;
+  background: #f7fff9;
+}
+
+input.optional-field,
+select.optional-field,
+textarea.optional-field {
+  border-color: #bdcbd8;
+  background: #ffffff;
+}
+
+.optional-label {
+  display: inline;
+  color: #64748b;
+  font-size: .82rem;
+  font-weight: 650;
+}
